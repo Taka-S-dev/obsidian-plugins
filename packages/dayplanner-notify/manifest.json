@@ -1,0 +1,9 @@
+{
+  "id": "dayplanner-notify",
+  "name": "Day Planner Notify",
+  "version": "0.1.0",
+  "minAppVersion": "1.5.0",
+  "description": "Makes Day Planner task-start notifications hard to miss: bring window to front, sound, and a snoozable modal.",
+  "author": "Taka-S-dev",
+  "isDesktopOnly": true
+}

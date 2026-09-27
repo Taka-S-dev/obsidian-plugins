@@ -1,0 +1,33 @@
+.dayplanner-notify-modal .dayplanner-notify-task {
+  font-size: 1.4em;
+  font-weight: 600;
+  margin: 0.5em 0 0.25em;
+}
+
+.dayplanner-notify-modal .dayplanner-notify-time {
+  color: var(--text-muted);
+  margin-bottom: 1em;
+}
+
+.dayplanner-notify-modal .dayplanner-notify-shift {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 0.5em;
+}
+
+.dayplanner-notify-modal .dayplanner-notify-shift-label {
+  color: var(--text-muted);
+  margin-right: 4px;
+}
+
+.dayplanner-notify-modal .dayplanner-notify-error {
+  color: var(--text-error);
+  font-size: var(--font-ui-small);
+  min-height: 1.2em;
+}
+
+.dayplanner-notify-undo {
+  margin-left: 8px;
+}
