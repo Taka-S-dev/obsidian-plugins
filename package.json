@@ -2,6 +2,7 @@
   "name": "obsidian-plugins",
   "private": true,
   "type": "module",
+  "license": "MIT",
   "description": "Personal Obsidian plugins, one package per plugin.",
   "workspaces": [
     "packages/*"

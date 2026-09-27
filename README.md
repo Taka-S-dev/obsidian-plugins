@@ -76,3 +76,7 @@ packages/<id>/
 - ソースは Vault の外に置く。`node_modules` を Vault や Obsidian Sync に入れないため。
 - `main.js` は生成物なのでコミットしない。
 - 共通処理は 2 つ以上のプラグインで実際に必要になってから `packages/shared` などに切り出す。
+
+## ライセンス
+
+[MIT](LICENSE)。無保証で提供し、利用によって生じた損害について作者は責任を負わない。各プラグインの README の「注意」も参照。
