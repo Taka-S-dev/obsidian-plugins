@@ -1,9 +1,9 @@
 {
   "id": "path-links",
   "name": "Path Links",
-  "version": "0.3.0",
-  "minAppVersion": "1.5.0",
-  "description": "Windowsのパスを標準のMarkdownリンクとして貼り付け、開く・元のパスをコピーできるようにします。",
+  "version": "0.4.0",
+  "minAppVersion": "1.8.7",
+  "description": "Paste Windows local and network paths as standard Markdown links, then open them in Explorer or copy the original path.",
   "author": "Taka-S-dev",
   "isDesktopOnly": true
 }

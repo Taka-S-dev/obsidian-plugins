@@ -1,13 +1,24 @@
+/** Invalid user input. The code selects the message shown in the user's language. */
+export class InputError extends Error {
+  readonly code: "empty" | "notAbsolute";
+
+  constructor(code: "empty" | "notAbsolute") {
+    super(code === "empty" ? "No path or URL was given." : "Not an absolute Windows path.");
+    this.name = "InputError";
+    this.code = code;
+  }
+}
+
 /** The clipboard may wrap an Explorer "Copy as path" value in quotes. */
 export function parsePaths(text: string): string[] {
   const lines = text.split(/\r?\n/).map(line => line.trim()).filter(Boolean);
-  if (!lines.length) throw new Error("クリップボードにパスがありません。");
+  if (!lines.length) throw new InputError("empty");
   return lines.map(line => {
     const path = line.startsWith('"') && line.endsWith('"') ? line.slice(1, -1) : line;
     const unc = /^\\\\[^\\/]+(?:[\\/].*)?$/.test(path);
     const drive = /^[a-z]:[\\/]/i.test(path);
     if ((!unc && !drive) || /^\\\\[?.][\\/]/.test(path) || /[\x00-\x1f]/.test(path)) {
-      throw new Error("Windowsの絶対パスをコピーしてください（例：\\\\server\\share、C:\\Users）。");
+      throw new InputError("notAbsolute");
     }
     return path;
   });

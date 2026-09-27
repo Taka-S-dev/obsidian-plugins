@@ -1,7 +1,7 @@
 // Standard Markdown links for Windows paths and web URLs.
 // Goal: notes stay readable in any Markdown editor, so no custom syntax and as little
 // percent-encoding as possible. Pure module: no Obsidian imports, unit-testable.
-import { filePath, parsePaths } from "./paths.ts";
+import { filePath, InputError, parsePaths } from "./paths.ts";
 
 /**
  * C:\a b\c -> file:///C:/a b/c, \\server\share\x -> file://server/share/x (RFC 8089 host form).
@@ -51,14 +51,14 @@ export interface BuiltLinks {
 
 /**
  * Clipboard text -> Markdown. One item becomes an inline link (the selection, if any, is the
- * label); several items become a bullet list. Invalid input throws with a user-facing message.
+ * label); several items become a bullet list. Invalid input throws an InputError.
  */
 export function buildLinks(clipboard: string, selection = ""): BuiltLinks {
   const items = clipboard
     .split(/\r?\n/)
     .map((line) => line.trim().replace(/^"(.*)"$/, "$1"))
     .filter(Boolean);
-  if (items.length === 0) throw new Error("クリップボードにパスやURLがありません。");
+  if (items.length === 0) throw new InputError("empty");
 
   const label = items.length === 1 ? selection.trim() : "";
   const links = items.map((item) => {

@@ -1,21 +1,36 @@
-import { MarkdownRenderChild, Notice, Plugin, setIcon } from "obsidian";
+import { getLanguage, MarkdownRenderChild, Notice, Plugin, setIcon } from "obsidian";
 import { clipboard } from "electron";
 import { confirmRiskyOpen } from "./confirm.ts";
+import { stringsFor, type Strings } from "./i18n.ts";
 import { buildLinks } from "./links.ts";
 import { copyButtons, fileLinkTarget } from "./live-preview.ts";
 import { openPath } from "./open-path.ts";
-import { filePath, insertion, parseEntries } from "./paths.ts";
+import { filePath, InputError, insertion, parseEntries } from "./paths.ts";
+
+/** Message for a caught error in the user's language. */
+function describe(error: unknown, s: Strings): string {
+  if (error instanceof InputError) return s.inputErrors[error.code];
+  return error instanceof Error ? error.message : String(error);
+}
 
 class PathLinksBlock extends MarkdownRenderChild {
-  constructor(container: HTMLElement, private source: string, private open: (path: string) => Promise<void>) { super(container); }
+  constructor(
+    container: HTMLElement,
+    private source: string,
+    private s: Strings,
+    private open: (path: string) => Promise<void>,
+  ) {
+    super(container);
+  }
 
   onload(): void {
+    const { s } = this;
     this.containerEl.empty();
     this.containerEl.addClass("path-links-container");
     let paths: { path: string; label: string }[];
     try { paths = parseEntries(this.source); }
     catch (error) {
-      this.containerEl.createEl("div", { text: String(error), cls: "path-links-error" });
+      this.containerEl.createEl("div", { text: describe(error, s), cls: "path-links-error" });
       this.containerEl.createEl("pre", { text: this.source });
       return;
     }
@@ -27,7 +42,7 @@ class PathLinksBlock extends MarkdownRenderChild {
       // Buttons avoid Markdown/URL normalization entirely; pass the raw path to Windows.
       const open = row.createEl("button", { text: label, cls: "path-links-open" });
       open.type = "button";
-      open.title = `開く：${path}`;
+      open.title = s.openTitle(path);
       this.registerDomEvent(open, "click", async (event) => {
         event.preventDefault();
         event.stopPropagation();
@@ -35,10 +50,10 @@ class PathLinksBlock extends MarkdownRenderChild {
         try { await this.open(path); }
         finally { open.disabled = false; }
       });
-      const copy = row.createEl("button", { text: "コピー", cls: "path-links-copy" });
+      const copy = row.createEl("button", { text: s.copy, cls: "path-links-copy" });
       copy.type = "button";
-      copy.title = "元のパスだけをコピー";
-      copy.setAttribute("aria-label", `パスをコピー：${path}`);
+      copy.title = s.copyTitle;
+      copy.setAttribute("aria-label", s.copyPathLabel(path));
       copy.setAttribute("aria-live", "polite");
       let timer: ReturnType<typeof setTimeout> | undefined;
       this.register(() => { if (timer) clearTimeout(timer); });
@@ -47,19 +62,24 @@ class PathLinksBlock extends MarkdownRenderChild {
         event.stopPropagation();
         try {
           clipboard.writeText(path);
-          copy.textContent = "コピー済み";
+          copy.textContent = s.copied;
           if (timer) clearTimeout(timer);
-          timer = setTimeout(() => { copy.textContent = "コピー"; }, 1400);
-        } catch (error) { new Notice(`コピーできませんでした：${String(error)}`); }
+          timer = setTimeout(() => { copy.textContent = s.copy; }, 1400);
+        } catch (error) { new Notice(s.copyFailed(String(error))); }
       });
     }
   }
 }
 
 export default class PathLinksPlugin extends Plugin {
+  private s: Strings = stringsFor("en");
+
   onload(): void {
+    const s = (this.s = stringsFor(getLanguage()));
+    const copyPath = (path: string) => this.copyPath(path);
+
     this.registerMarkdownCodeBlockProcessor("path-links", (source, el, ctx) => {
-      ctx.addChild(new PathLinksBlock(el, source, (path) => this.openAndReport(path)));
+      ctx.addChild(new PathLinksBlock(el, source, s, (path) => this.openAndReport(path)));
     });
     this.registerMarkdownPostProcessor((el, ctx) => {
       for (const link of Array.from(el.querySelectorAll<HTMLAnchorElement>('a[href]'))) {
@@ -76,7 +96,8 @@ export default class PathLinksPlugin extends Plugin {
           event.stopPropagation();
           void this.openAndReport(path);
         });
-        const copy = wrapper.createEl("button", { cls: "path-links-inline-copy", attr: { title: `パスをコピー：${path}`, "aria-label": `パスをコピー：${path}` } });
+        const label = s.copyPathLabel(path);
+        const copy = wrapper.createEl("button", { cls: "path-links-inline-copy", attr: { title: label, "aria-label": label } });
         setIcon(copy, "copy");
         child.registerDomEvent(copy, "click", event => {
           event.preventDefault();
@@ -87,7 +108,7 @@ export default class PathLinksPlugin extends Plugin {
     });
 
     // Live Preview: same copy button and foreground Explorer as in Reading view.
-    this.registerEditorExtension(copyButtons(copyPath));
+    this.registerEditorExtension(copyButtons(copyPath, s.copyPathLabel));
     // Capture phase, so Obsidian's own link handling (which opens folders behind the window) never runs.
     const interceptLinkClick = (event: MouseEvent) => {
       if (event.button !== 0 || !(event.target instanceof HTMLElement)) return;
@@ -102,7 +123,7 @@ export default class PathLinksPlugin extends Plugin {
 
     this.addCommand({
       id: "paste-path-links",
-      name: "クリップボードのパス・URLをリンクとして貼り付け",
+      name: s.pasteCommand,
       editorCallback: (editor) => {
         try {
           const { text, multiline } = buildLinks(clipboard.readText(), editor.getSelection());
@@ -115,7 +136,7 @@ export default class PathLinksPlugin extends Plugin {
           const before = editor.getLine(from.line).slice(0, from.ch);
           const after = editor.getLine(to.line).slice(to.ch);
           editor.replaceSelection(insertion(text, before, after));
-        } catch (error) { new Notice(error instanceof Error ? error.message : String(error)); }
+        } catch (error) { new Notice(describe(error, s)); }
       }
     });
   }
@@ -123,13 +144,13 @@ export default class PathLinksPlugin extends Plugin {
   /** Every open goes through here, so files Windows would execute always ask first. */
   private async openAndReport(path: string): Promise<void> {
     try {
-      const error = await openPath(path, (p) => confirmRiskyOpen(this.app, p));
-      if (error) new Notice(`開けませんでした：${path}\n${error}`, 8000);
-    } catch (error) { new Notice(`開けませんでした：${String(error)}`, 8000); }
+      const error = await openPath(path, (p) => confirmRiskyOpen(this.app, p, this.s));
+      if (error) new Notice(this.s.openFailed(path, error), 8000);
+    } catch (error) { new Notice(this.s.openFailed(path, String(error)), 8000); }
   }
-}
 
-function copyPath(path: string): void {
-  try { clipboard.writeText(path); new Notice("パスをコピーしました", 1400); }
-  catch (error) { new Notice(`コピーできませんでした：${String(error)}`); }
+  private copyPath(path: string): void {
+    try { clipboard.writeText(path); new Notice(this.s.pathCopied, 1400); }
+    catch (error) { new Notice(this.s.copyFailed(String(error))); }
+  }
 }

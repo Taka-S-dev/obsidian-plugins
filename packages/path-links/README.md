@@ -1,76 +1,80 @@
 # Path Links
 
-Windows のローカルパス・共有パス（UNC）を、標準の Markdown リンクとして貼り付け、Obsidian から「開く＋コピー」できるようにする個人用プラグイン。Windows・デスクトップ専用。
+English | [日本語](README.ja.md)
 
-## 方針
+An Obsidian plugin that pastes Windows local and network (UNC) paths as standard Markdown links, then opens them in Explorer or copies the original path. Windows, Obsidian 1.8.7 or later, desktop only.
 
-ノートは素の Markdown エディタ（VS Code、GitHub など）で開いても自然に読めることを優先する。
+The interface follows Obsidian's language: Japanese when Obsidian is in Japanese, English otherwise.
 
-- 保存するのは標準の Markdown リンクだけ。独自記法を使わないので、プラグインを外してもノートはそのまま読める。
-- リンク先はパスが読める形で書く。パーセントエンコードするのはリンクを壊す `%` と `#` だけ。
-- 表示名は末尾のフォルダ名・ファイル名。フルパスを表示名にするとソース上でバックスラッシュが二重になり読みにくいため。パスはリンク先で分かる。
+## Approach
+
+Notes should read naturally in any Markdown editor (VS Code, GitHub, ...).
+
+- Only standard Markdown links are saved. There is no custom syntax, so notes stay readable without the plugin.
+- Link targets keep the path readable. Only `%` and `#`, which would break the link, are percent-encoded.
+- The label is the last folder or file name. A full path as the label doubles every backslash in the source, and the path is already in the target.
 
 ```markdown
 [release](<file:///C:/Users/me/project/target/release>)
-[部署](<file://server/share/部署>)
+[Reports](<file://server/share/Reports>)
 <https://example.sharepoint.com/sites/team>
 ```
 
-## 使い方
+## Usage
 
-1. エクスプローラーでパスをコピー（「パスのコピー」で付く両端の `"` は除去する）。
-2. Ctrl+P →「Path Links: クリップボードのパス・URLをリンクとして貼り付け」。ホットキーも割り当てられる。
-   - 文字を選択していれば、それを表示名にする。
-   - 複数行なら箇条書きのリストにする。
-   - `https://` の URL は `<…>` の自動リンク（選択があれば `[選択](<URL>)`）。
-3. ライブプレビューと閲覧モードでは、`file://` リンクの後ろにコピーボタンが付く。コピーするのは元の Windows パス。
-4. リンクのクリックでフォルダを開く。
+1. Copy a path in Explorer (the surrounding `"` from "Copy as path" are removed).
+2. Run "Path Links: Paste clipboard paths and URLs as links" from the command palette, or bind it to a hotkey.
+   - Selected text becomes the label.
+   - Several lines become a bullet list.
+   - `https://` URLs become `<…>` autolinks, or `[selection](<URL>)` when text is selected.
+3. In Reading view and Live Preview, `file://` links get a copy button that copies the original Windows path.
+4. Clicking a link opens the folder.
 
-ソースモードでは何も足さない（ファイルの中身がそのまま見える）。ライブプレビューでも、カーソルがリンクの中にある間はボタンを出さない。
+Source mode shows the file exactly as stored. In Live Preview the button is hidden while the cursor is inside the link.
 
-## 開き方
+## How links open
 
-Windows のフォルダは explorer.exe に元のパスを単一の引数として渡して開く。Obsidian 標準の処理ではフォルダが Obsidian の背面に開くため、その対策。ファイルは関連付けアプリで開く。フォルダ判定や起動に失敗した場合は Obsidian 標準の開き方にフォールバックする。シェルのコマンド文字列は組み立てない。前面化は Windows 側の制限に従うため、全環境での保証はない。
+Folders are opened by passing the original path to explorer.exe as a single argument. Obsidian's default handling opens folders behind the Obsidian window. Files open in their associated application. If the folder check or the launch fails, Obsidian's default handling is used. No shell command string is ever built. Bringing Explorer to the front is subject to Windows' focus rules, so it is not guaranteed on every system.
 
-### 実行されるファイルは確認してから開く
+### Files that run as programs ask first
 
-Markdown エディタのプレビューには、`file://` リンクを開かないものがある。リンクを 1 回クリックしただけでプログラムが動くと、信頼できないノートが危険になるため。
-Path Links は開く代わりに、Windows が「実行する」種類のファイル（`.exe` `.bat` `.cmd` `.ps1` `.vbs` `.js` `.msi` `.lnk` `.url` `.reg` など）だけ確認ダイアログを出す。既定の選択はキャンセルで、Esc で閉じてもキャンセルになる。
-フォルダ・文書・画像などは確認なしで開く。末尾のドットや空白（`setup.exe.`）、代替データストリーム（`a.txt:b.exe`）も実行ファイルとして扱う。
+Some Markdown previews do not open `file://` links at all, because one click on a link in an untrusted note could run a program.
+Path Links opens them, but asks first for file types Windows runs rather than displays (`.exe` `.bat` `.cmd` `.ps1` `.vbs` `.js` `.msi` `.lnk` `.url` `.reg` and others). Cancel is the default, and closing the dialog with Esc also cancels.
+Folders, documents and images open without asking. Trailing dots or spaces (`setup.exe.`) and alternate data streams (`a.txt:b.exe`) are treated as executables too.
 
-## 注意
+## Caution
 
-- このプラグインは、ノート内のリンクから Windows のファイルやフォルダを開く。開いたファイルが何をするかは、そのファイルと関連付けアプリ次第。
-- 確認ダイアログは拡張子による判定で、危険なファイルをすべて見分けられるわけではない。たとえばマクロ付きの Office 文書（`.docm` `.xlsm` など）は確認なしで開くため、Office 側のマクロ設定に依存する。
-- Web クリップや他人から受け取ったノートのリンクは、リンク先のパスを確認してから開くこと。
-- 無保証で提供する。利用は自己責任とし、作者は利用によって生じた損害について責任を負わない（[LICENSE](../../LICENSE)）。
+- This plugin opens Windows files and folders from links in notes. What an opened file does depends on the file and its associated application.
+- The confirmation is based on the file extension and cannot catch every dangerous file. For example, Office documents with macros (`.docm`, `.xlsm`) open without asking and rely on Office's macro settings.
+- Check the target path before opening links in web clippings or notes from other people.
+- Provided without warranty. Use at your own risk; the author is not liable for any damage arising from its use (see [LICENSE](../../LICENSE)).
 
-## `file://localhost` の扱い
+## `file://localhost`
 
-RFC 8089 と Windows に合わせ、`localhost` は「この PC 自身」として扱う。
+Following RFC 8089 and Windows, `localhost` means this machine.
 
-| リンク先 | 開くパス |
+| Link target | Opens |
 |---|---|
 | `file://localhost/C:/a` | `C:\a` |
-| `file://localhost/Users`（ドライブなし） | 対象外（Windows でも正しいパスにならない） |
-| `file:////localhost/Users`（UNC 形式） | `\\localhost\Users` |
+| `file://localhost/Users` (no drive) | Not handled (Windows does not resolve it to a valid path either) |
+| `file:////localhost/Users` (UNC form) | `\\localhost\Users` |
 
-`\\localhost\…` を貼り付けたときだけ UNC 形式（4 スラッシュ）を出力する。手元で共有パスを試すなら `\\127.0.0.1\Users` の方が他のエディタでも同じ解釈になる。
+The UNC form (four slashes) is written only when pasting a `\\localhost\…` path. To try share paths locally, `\\127.0.0.1\Users` resolves the same way in other editors.
 
-## 読み取れる形式
+## Formats it reads
 
-- `[名前](<file:///C:/a b/c>)`、`[名前](<file://server/share/x>)`、`[名前](file:///C:/x)`
-- 旧形式の `[名前](<file:///%5C%5Cserver/share>)`
-- 旧形式の専用コードブロック（表示のみ。新たに挿入する手段はない）
+- `[name](<file:///C:/a b/c>)`, `[name](<file://server/share/x>)`, `[name](file:///C:/x)`
+- The older `[name](<file:///%5C%5Cserver/share>)` form
+- The older `path-links` code block (display only; there is no command to insert it)
 
 ````markdown
 ```path-links
 \\localhost\Users
-[ユーザー](<C:\Users>)
+[Users](<C:\Users>)
 ```
 ````
 
-## 開発
+## Development
 
-リポジトリルートの README を参照。`npm test -w path-links`、`npm run build -w path-links`。
-`tests/fixtures/sample-note.md` は旧形式のブロックを含む試用ノートと同じ内容のテスト用データ。
+See the repository README. `npm test -w path-links`, `npm run build -w path-links`.
+`tests/fixtures/sample-note.md` is test data containing the older code block.

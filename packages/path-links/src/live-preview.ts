@@ -4,7 +4,7 @@ import { editorLivePreviewField, setIcon } from "obsidian";
 import { findFileLinks, type FileLinkRange } from "./links.ts";
 
 class CopyButton extends WidgetType {
-  constructor(private path: string, private onCopy: (path: string) => void) {
+  constructor(private path: string, private onCopy: (path: string) => void, private label: (path: string) => string) {
     super();
   }
 
@@ -16,8 +16,8 @@ class CopyButton extends WidgetType {
     const button = document.createElement("button");
     button.type = "button";
     button.className = "path-links-inline-copy path-links-lp-copy";
-    button.title = `パスをコピー：${this.path}`;
-    button.setAttribute("aria-label", `パスをコピー：${this.path}`);
+    button.title = this.label(this.path);
+    button.setAttribute("aria-label", this.label(this.path));
     setIcon(button, "copy");
     // mousedown would otherwise move the cursor into the link and reveal its source.
     button.addEventListener("mousedown", (e) => {
@@ -51,7 +51,7 @@ export function fileLinksAround(view: EditorView, pos: number): FileLinkRange[] 
  * Live Preview only: a copy button after every Markdown link to a file:// target.
  * Source mode stays untouched so the raw Markdown is exactly what is on disk.
  */
-export function copyButtons(onCopy: (path: string) => void) {
+export function copyButtons(onCopy: (path: string) => void, label: (path: string) => string) {
   return ViewPlugin.fromClass(
     class {
       decorations: DecorationSet;
@@ -86,7 +86,7 @@ export function copyButtons(onCopy: (path: string) => void) {
             const end = line.from + link.to;
             // While the cursor is inside a link its source is being edited; stay out of the way.
             if (selection.ranges.some((r) => r.from <= end && r.to >= start)) continue;
-            builder.add(end, end, Decoration.widget({ widget: new CopyButton(link.path, onCopy), side: 1 }));
+            builder.add(end, end, Decoration.widget({ widget: new CopyButton(link.path, onCopy, label), side: 1 }));
           }
           pos = line.to + 1;
         }

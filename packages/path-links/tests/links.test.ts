@@ -108,3 +108,9 @@ test("every generated link is found again by findFileLinks", () => {
     assert.deepEqual(findFileLinks(text).map((f) => f.path), [path], text);
   }
 });
+
+test("input errors carry a code so the message can be shown in the user's language", async () => {
+  const { InputError } = await import("../src/paths.ts");
+  assert.throws(() => buildLinks(""), (e: unknown) => e instanceof InputError && e.code === "empty");
+  assert.throws(() => buildLinks("relative\path"), (e: unknown) => e instanceof InputError && e.code === "notAbsolute");
+});
