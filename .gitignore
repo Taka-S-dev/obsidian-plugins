@@ -1,3 +1,36 @@
+# Allowlist: everything is ignored unless listed below by path.
+# A new kind of file has to be added here on purpose, so secrets and local
+# files (.env, notes, build output) are never committed by accident.
+*
+!*/
+
+!/.gitignore
+!/.nvmrc
+!/LICENSE
+!/README.md
+!/README.ja.md
+!/package.json
+!/package-lock.json
+!/tsconfig.base.json
+!/scripts/*.mjs
+
+!/packages/*/README.md
+!/packages/*/README.ja.md
+!/packages/*/manifest.json
+!/packages/*/package.json
+!/packages/*/tsconfig.json
+!/packages/*/styles.css
+!/packages/*/src/**
+!/packages/*/tests/**
+
+# Re-deny secrets and local-only files even inside allowed paths.
+.env
+.env.*
+*.pem
+*.key
+*.pfx
+id_rsa*
+secrets.*
+credentials.*
 node_modules/
-packages/*/main.js
 CLAUDE.md
