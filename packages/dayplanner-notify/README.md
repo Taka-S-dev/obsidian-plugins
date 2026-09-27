@@ -1,57 +1,61 @@
 # Day Planner Notify
 
-[Day Planner](https://github.com/ivan-lednev/obsidian-day-planner) のタスク開始通知を見落とさないようにする個人用 Obsidian プラグイン。Windows・デスクトップ専用。
+English | [日本語](README.ja.md)
 
-## 何をするか
+An Obsidian plugin that makes [Day Planner](https://github.com/ivan-lednev/obsidian-day-planner) task starts hard to miss. Windows, desktop only.
 
-Day Planner がタスク開始時に出す OS 通知（`Task started: …`）を検知して、次を追加する。
+## What it does
 
-- Obsidian のウィンドウを前面に出す（最小化・トレイ格納からも復帰）
-- ビープ音
-- 「+15 / +30 / +45 / +60」で予定をずらせるモーダル（ほかに「ノートを開く」「OK」）
-- 閉じるまで一定間隔で音とタスクバー点滅を繰り返す（2 回目以降はフォーカスを奪わない）
+When Day Planner announces a task start (its `Task started: …` notification), this plugin adds:
 
-いつ通知するかは Day Planner が決める。このプラグインは時刻のパースやスケジュールを持たない。
-モーダルと音は OS のトーストとは別に Obsidian の中で出すため、Windows の応答不可モードの影響を受けない。
+- Brings the Obsidian window to the front, including from minimized or the system tray
+- Plays a short beep
+- Opens an alert with the task, its time, and buttons to postpone it (+15 / +30 / +45 / +60 min), open the note, or dismiss it
+- Repeats the beep and flashes the taskbar until the alert is closed (without stealing focus again)
 
-## 予定をずらす
+Day Planner decides when a task starts; this plugin has no parsing or scheduling of its own.
+The alert and sound come from inside Obsidian, separately from the OS notification, so Windows Do Not Disturb does not hide them.
 
-+N を押すと、今日のデイリーノートにあるそのブロックの開始・終了時刻を N 分後ろへ書き換える。
-Day Planner がノートの変更を拾い、新しい開始時刻にもう一度通知する（スヌーズの代わり）。
+The interface follows Obsidian's language: Japanese when Obsidian is in Japanese, English otherwise.
 
-- 対象は未完了（`[ ]`）かチェックボックスなしの行だけ。`[x]` や `[-]` は触らない。
-- タスク名と開始時刻で行を特定する。同名・同時刻の行が複数ある場合や、日付をまたぐ場合は書き換えずにメッセージを出す。
-- 後続のブロックは動かさない。重なったら Day Planner のタイムラインで調整する。
-- 選択肢は設定で変更できる（カンマ区切り）。
+## Postponing
 
-ずらした直後の通知に「Undo」ボタンが 8 秒間出る。押すと書き換える前の行をそのまま書き戻し、
-アラートを音・前面化なしで開き直すので、別の分数を選び直せる。
-戻した直後に Day Planner が出す再通知（ブロックが再び「開始済み」になるため）は無視し、OS のトーストも閉じる。
-ずらしたあとにその行を編集していた場合は戻さない。
+Pressing +N rewrites the block's start and end time in today's daily note, N minutes later.
+Day Planner picks up the change and notifies again at the new start time, so this replaces a snooze and keeps the timeline accurate.
 
-## 前提
+- Only open tasks (`[ ]`) and plain bullets are changed. Done or cancelled blocks (`[x]`, `[-]`) are never touched.
+- The line is found by task name and start time. If several lines match, or the block would cross midnight, nothing is changed and the alert shows why.
+- Later blocks are not moved. If they overlap, adjust them on Day Planner's timeline.
+- The options can be changed in the settings (comma-separated minutes).
 
-- Day Planner の設定で「Task Notification」がオン（オフだと起動時に警告を出す）
-- Obsidian が起動していること
+After postponing, the confirmation shows an Undo button for 8 seconds. Undo puts the original line back exactly and reopens the alert quietly (no sound or focus change), so you can pick a different amount.
+Day Planner's repeat announcement for the restored block is ignored, and its OS notification is closed.
+If the line was edited after postponing, Undo leaves it alone.
 
-## 設定
+## Requirements
 
-前面化モード（off / flash / front）、音のオンオフと音量、再通知の間隔と最大回数、ずらす時間の選択肢。
+- Obsidian 1.8.7 or later, on Windows
+- Task Notification turned on in Day Planner's settings (the plugin warns at startup if it is off)
+- Obsidian running
 
-## コマンド
+## Settings
 
-- テスト通知を送る
-- 10秒後にテスト通知を送る（最小化して前面化を確認する用）
+Bring window to front (off / flash / front), sound and volume, repeat interval and maximum repeats, postpone options.
 
-どちらも Day Planner と同じ経路の通知を発行するので、実際の動作をそのまま確認できる。
+## Commands
 
-## 制約
+- Send a test notification
+- Send a test notification in 10 seconds (minimize Obsidian to check bringing the window to front)
 
-- 同時刻に始まる複数のブロックは、Day Planner が 1 件しか通知しないため 1 件だけ反応する。
-- Day Planner が通知文言（`Task started: `）を変えると検知できなくなる。
+Both go through the same path as Day Planner's own notification, so they exercise the real behavior.
 
-## 注意
+## Limitations
 
-- 「ずらす」はデイリーノートの該当行を直接書き換える。対象を特定できない場合は書き換えないが、大事なノートは Obsidian Sync や git などで履歴を残しておくこと。
-- ブラウザの `Notification` を差し替えて Day Planner の通知を検知する。ほかのプラグインが同じ仕組みを使う場合、組み合わせによっては干渉する可能性がある。
-- 無保証で提供する。利用は自己責任とし、作者は利用によって生じた損害について責任を負わない（[LICENSE](../../LICENSE)）。
+- When several blocks start at the same time, Day Planner announces only one, so only one alert appears.
+- If Day Planner changes its notification text (`Task started: `), this plugin no longer detects it.
+
+## Caution
+
+- Postponing edits the daily note directly. It changes nothing when the line cannot be identified, but keep history for important notes (Obsidian Sync, git, or similar).
+- The plugin detects Day Planner's notification by wrapping the browser `Notification` API. Other plugins that wrap the same API may interfere.
+- Provided without warranty. Use at your own risk; the author is not liable for any damage arising from its use (see [LICENSE](../../LICENSE)).

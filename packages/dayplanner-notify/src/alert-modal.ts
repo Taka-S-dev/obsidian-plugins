@@ -1,58 +1,60 @@
 import { App, ButtonComponent, Modal } from "obsidian";
+import type { Strings } from "./i18n";
 import type { TaskStart } from "./match";
 
 export interface AlertActions {
   /** Minutes offered as "+N" buttons; empty hides the row. */
-  shiftOptions: number[];
+  postponeOptions: number[];
   /** Resolves to an error message to show in the modal, or null on success. */
-  onShift(minutes: number): Promise<string | null>;
+  onPostpone(minutes: number): Promise<string | null>;
   onOpenNote(): void;
   onClosed(): void;
 }
 
 export class TaskStartModal extends Modal {
-  constructor(app: App, private start: TaskStart, private actions: AlertActions) {
+  constructor(app: App, private start: TaskStart, private s: Strings, private actions: AlertActions) {
     super(app);
   }
 
   onOpen(): void {
-    const { contentEl } = this;
-    this.setTitle("タスク開始");
+    const { contentEl, s } = this;
     contentEl.addClass("dayplanner-notify-modal");
-    contentEl.createEl("div", { text: this.start.task, cls: "dayplanner-notify-task" });
-    if (this.start.time !== "") contentEl.createEl("div", { text: this.start.time, cls: "dayplanner-notify-time" });
+    // The task is what matters; the status is a small label above it.
+    contentEl.createDiv({ text: s.starting, cls: "dayplanner-notify-label" });
+    contentEl.createDiv({ text: this.start.task, cls: "dayplanner-notify-task" });
+    if (this.start.time !== "") contentEl.createDiv({ text: this.start.time, cls: "dayplanner-notify-time" });
 
-    if (this.actions.shiftOptions.length > 0) {
-      const row = contentEl.createDiv({ cls: "dayplanner-notify-shift" });
-      row.createSpan({ text: "ずらす", cls: "dayplanner-notify-shift-label" });
+    if (this.actions.postponeOptions.length > 0) {
+      const row = contentEl.createDiv({ cls: "dayplanner-notify-postpone" });
+      row.createSpan({ text: s.postpone, cls: "dayplanner-notify-postpone-label" });
       const error = contentEl.createDiv({ cls: "dayplanner-notify-error" });
-      const shiftButtons: ButtonComponent[] = [];
-      for (const minutes of this.actions.shiftOptions) {
+      const buttons: ButtonComponent[] = [];
+      for (const minutes of this.actions.postponeOptions) {
         const button = new ButtonComponent(row)
-          .setButtonText(`+${minutes}`)
-          .setTooltip(`${minutes}分後ろへずらす`)
+          .setButtonText(s.postponeButton(minutes))
+          .setTooltip(s.postponeTooltip(minutes))
           .onClick(async () => {
-            shiftButtons.forEach((b) => b.setDisabled(true));
+            buttons.forEach((b) => b.setDisabled(true));
             error.setText("");
-            const message = await this.actions.onShift(minutes);
+            const message = await this.actions.onPostpone(minutes);
             if (message === null) {
               this.close();
               return;
             }
             // Keep the modal open so the user can fall back to editing the note.
             error.setText(message);
-            shiftButtons.forEach((b) => b.setDisabled(false));
+            buttons.forEach((b) => b.setDisabled(false));
           });
-        shiftButtons.push(button);
+        buttons.push(button);
       }
     }
 
     const footer = contentEl.createDiv({ cls: "modal-button-container" });
-    new ButtonComponent(footer).setButtonText("ノートを開く").onClick(() => {
+    new ButtonComponent(footer).setButtonText(s.openNote).onClick(() => {
       this.actions.onOpenNote();
       this.close();
     });
-    new ButtonComponent(footer).setButtonText("OK").setCta().onClick(() => this.close());
+    new ButtonComponent(footer).setButtonText(s.ok).setCta().onClick(() => this.close());
   }
 
   onClose(): void {

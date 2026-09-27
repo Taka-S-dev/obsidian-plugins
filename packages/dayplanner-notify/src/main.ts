@@ -1,18 +1,12 @@
-import { normalizePath, Notice, Plugin, TFile } from "obsidian";
+import { getLanguage, normalizePath, Notice, Plugin, TFile } from "obsidian";
 import { TaskStartModal } from "./alert-modal";
 import { beep, bringToFront } from "./attention";
+import { stringsFor, type Strings } from "./i18n";
 import { formatTaskStartTitle, parseTaskStartTitle, type TaskStart } from "./match";
 import { rescheduleBlock, restoreLine, startMinutesOf } from "./reschedule";
 import { DEFAULT_SETTINGS, mergeSettings, NotifySettingTab, type NotifySettings } from "./settings";
 
 const DAY_PLANNER_ID = "obsidian-day-planner";
-
-const SHIFT_ERRORS = {
-  "not-found": "ノートに該当するブロックが見つかりません。完了済みか、時刻や名前が変わった可能性があります。",
-  ambiguous: "同じ時刻・同じ名前のブロックが複数あるため、ずらせません。ノートを開いて調整してください。",
-  "past-midnight": "日付をまたぐため、ずらせません。",
-} as const;
-
 const UNDO_NOTICE_MS = 8_000;
 const SUPPRESS_AFTER_UNDO_MS = 15_000;
 
@@ -23,26 +17,28 @@ interface DailyNoteOptions {
 
 export default class DayPlannerNotify extends Plugin {
   settings: NotifySettings = { ...DEFAULT_SETTINGS };
+  s: Strings = stringsFor("en");
   private timers = new Set<number>();
   private modals = new Set<TaskStartModal>();
   /** Task name -> time (ms) until which Day Planner's notification for it is ignored. */
   private suppressed = new Map<string, number>();
 
   async onload(): Promise<void> {
+    this.s = stringsFor(getLanguage());
     await this.loadSettings();
     this.addSettingTab(new NotifySettingTab(this.app, this));
     this.hookNotification();
 
     this.addCommand({
       id: "test-now",
-      name: "テスト通知を送る",
+      name: this.s.commands.testNow,
       callback: () => this.sendTest(),
     });
     this.addCommand({
       id: "test-delayed",
-      name: "10秒後にテスト通知を送る（最小化して前面化を確認）",
+      name: this.s.commands.testDelayed,
       callback: () => {
-        new Notice("10秒後にテスト通知を送ります");
+        new Notice(this.s.testScheduled);
         this.later(10_000, () => this.sendTest());
       },
     });
@@ -121,9 +117,9 @@ export default class DayPlannerNotify extends Plugin {
       repeatTimer = null;
     };
 
-    const modal = new TaskStartModal(this.app, start, {
-      shiftOptions: startMinutesOf(start.time) === null ? [] : s.shiftOptions,
-      onShift: (minutes) => this.shiftBlock(start, firedOn, minutes),
+    const modal = new TaskStartModal(this.app, start, this.s, {
+      postponeOptions: startMinutesOf(start.time) === null ? [] : s.postponeOptions,
+      onPostpone: (minutes) => this.postponeBlock(start, firedOn, minutes),
       onOpenNote: () => this.openTodayNote(),
       onClosed: () => {
         stopRepeat();
@@ -155,33 +151,33 @@ export default class DayPlannerNotify extends Plugin {
   }
 
   /** Moves the block later in the daily note; Day Planner then notifies again at the new time. */
-  private async shiftBlock(start: TaskStart, day: moment.Moment, minutes: number): Promise<string | null> {
+  private async postponeBlock(start: TaskStart, day: moment.Moment, minutes: number): Promise<string | null> {
     const file = this.dailyNoteFile(day);
-    if (file === null) return "デイリーノートが見つかりません。";
-    return this.shiftBlockInFile(file, start, minutes, () => this.alert(start, { quiet: true, firedOn: day }));
+    if (file === null) return this.s.errors.noDailyNote;
+    return this.postponeBlockInFile(file, start, minutes, () => this.alert(start, { quiet: true, firedOn: day }));
   }
 
-  private async shiftBlockInFile(
+  private async postponeBlockInFile(
     file: TFile,
     start: TaskStart,
     minutes: number,
     onUndone?: () => void,
   ): Promise<string | null> {
     const startMinutes = startMinutesOf(start.time);
-    if (startMinutes === null) return "開始時刻が分からないため、ずらせません。";
+    if (startMinutes === null) return this.s.errors.noStartTime;
 
     const result = await this.writeNote(file, (data) => rescheduleBlock(data, start.task, startMinutes, minutes));
-    if (!result.ok) return SHIFT_ERRORS[result.reason];
+    if (!result.ok) return this.s.errors[result.reason];
 
     const notice = new Notice(
       createFragment((f) => {
-        f.createSpan({ text: `「${start.task}」を ${result.from} → ${result.to} にずらしました` });
-        const undo = f.createEl("button", { text: "Undo", cls: "dayplanner-notify-undo" });
+        f.createSpan({ text: this.s.postponed(start.task, result.from, result.to) });
+        const undo = f.createEl("button", { text: this.s.undo, cls: "dayplanner-notify-undo" });
         undo.addEventListener("click", (event) => {
           event.stopPropagation();
           undo.disabled = true;
           notice.hide();
-          void this.undoShift(file, start, result, onUndone);
+          void this.undoPostpone(file, start, result, onUndone);
         });
       }),
       UNDO_NOTICE_MS,
@@ -189,22 +185,21 @@ export default class DayPlannerNotify extends Plugin {
     return null;
   }
 
-  private async undoShift(
+  private async undoPostpone(
     file: TFile,
     start: TaskStart,
-    shift: { before: string; after: string; from: string },
+    moved: { before: string; after: string; from: string },
     onUndone?: () => void,
   ): Promise<void> {
     // Moving the block back makes it "just started" again, so Day Planner will announce it once more.
     this.suppressed.set(start.task, Date.now() + SUPPRESS_AFTER_UNDO_MS);
-    const result = await this.writeNote(file, (data) => restoreLine(data, shift.after, shift.before));
+    const result = await this.writeNote(file, (data) => restoreLine(data, moved.after, moved.before));
     if (!result.ok) {
       this.suppressed.delete(start.task);
-      const reason = result.reason === "ambiguous" ? SHIFT_ERRORS.ambiguous : "ずらした行が変更されたため、戻せませんでした。";
-      new Notice(reason, 8000);
+      new Notice(result.reason === "ambiguous" ? this.s.errors.ambiguous : this.s.errors.undoLineChanged, 8000);
       return;
     }
-    new Notice(`「${start.task}」を ${shift.from} に戻しました`);
+    new Notice(this.s.restored(start.task, moved.from));
     onUndone?.();
   }
 
@@ -238,15 +233,13 @@ export default class DayPlannerNotify extends Plugin {
   private openTodayNote(): void {
     // The core "Daily notes" command resolves folder and date format itself.
     const commands = (this.app as unknown as { commands: { executeCommandById(id: string): boolean } }).commands;
-    if (!commands.executeCommandById("daily-notes")) {
-      new Notice("デイリーノートを開けませんでした（コアプラグイン「デイリーノート」を確認してください）");
-    }
+    if (!commands.executeCommandById("daily-notes")) new Notice(this.s.errors.openDailyNote);
   }
 
   private sendTest(): void {
     const now = window.moment();
     const title = formatTaskStartTitle({
-      task: "テストタスク",
+      task: this.s.testTask,
       time: `${now.format("HH:mm")} - ${now.clone().add(30, "minutes").format("HH:mm")}`,
     });
     // Goes through the same hook as Day Planner, so this exercises the real path.
@@ -257,11 +250,9 @@ export default class DayPlannerNotify extends Plugin {
     const plugins = (this.app as unknown as { plugins: { plugins: Record<string, unknown> } }).plugins.plugins;
     const dp = plugins[DAY_PLANNER_ID] as { getSettings?: () => { showTaskNotification?: boolean } } | undefined;
     if (dp === undefined) {
-      new Notice("Day Planner Notify: Day Planner が有効になっていません", 10_000);
+      new Notice(this.s.dayPlannerMissing, 10_000);
       return;
     }
-    if (dp.getSettings?.().showTaskNotification === false) {
-      new Notice("Day Planner Notify: Day Planner の設定で Task Notification をオンにしてください", 10_000);
-    }
+    if (dp.getSettings?.().showTaskNotification === false) new Notice(this.s.dayPlannerNotifyOff, 10_000);
   }
 }

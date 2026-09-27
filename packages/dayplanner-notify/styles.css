@@ -1,15 +1,23 @@
+.dayplanner-notify-modal .dayplanner-notify-label {
+  color: var(--text-muted);
+  font-size: var(--font-ui-small);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
 .dayplanner-notify-modal .dayplanner-notify-task {
-  font-size: 1.4em;
+  font-size: 1.5em;
   font-weight: 600;
-  margin: 0.5em 0 0.25em;
+  line-height: 1.3;
+  margin: 0.15em 0 0.2em;
 }
 
 .dayplanner-notify-modal .dayplanner-notify-time {
   color: var(--text-muted);
-  margin-bottom: 1em;
+  margin-bottom: 1.2em;
 }
 
-.dayplanner-notify-modal .dayplanner-notify-shift {
+.dayplanner-notify-modal .dayplanner-notify-postpone {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
@@ -17,7 +25,7 @@
   margin-bottom: 0.5em;
 }
 
-.dayplanner-notify-modal .dayplanner-notify-shift-label {
+.dayplanner-notify-modal .dayplanner-notify-postpone-label {
   color: var(--text-muted);
   margin-right: 4px;
 }

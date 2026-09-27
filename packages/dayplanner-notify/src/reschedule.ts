@@ -27,7 +27,7 @@ function formatClock(total: number, padHour: boolean): string {
 }
 
 /** "15, 30,45 60" -> [15, 30, 45, 60]. Drops invalid, duplicate and out-of-range values. */
-export function parseShiftOptions(text: string): number[] {
+export function parsePostponeOptions(text: string): number[] {
   const values = text
     .split(/[\s,、]+/)
     .filter(Boolean)

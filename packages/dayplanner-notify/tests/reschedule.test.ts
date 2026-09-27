@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { parseShiftOptions, rescheduleBlock, restoreLine, startMinutesOf } from "../src/reschedule.ts";
+import { parsePostponeOptions, rescheduleBlock, restoreLine, startMinutesOf } from "../src/reschedule.ts";
 
 const NOTE = [
   "# Day planner",
@@ -81,11 +81,11 @@ test("refuses to move a block past midnight", () => {
   assert.equal(shifted("- [ ] 23:00 - 23:30 read", "read", "23:00", 15), "- [ ] 23:15 - 23:45 read");
 });
 
-test("parseShiftOptions accepts loose input and cleans it up", () => {
-  assert.deepEqual(parseShiftOptions("15, 30, 45, 60"), [15, 30, 45, 60]);
-  assert.deepEqual(parseShiftOptions("60,15 30、15"), [15, 30, 60]);
-  assert.deepEqual(parseShiftOptions("0, -5, 1.5, abc, 721, 10"), [10]);
-  assert.deepEqual(parseShiftOptions(""), []);
+test("parsePostponeOptions accepts loose input and cleans it up", () => {
+  assert.deepEqual(parsePostponeOptions("15, 30, 45, 60"), [15, 30, 45, 60]);
+  assert.deepEqual(parsePostponeOptions("60,15 30、15"), [15, 30, 60]);
+  assert.deepEqual(parsePostponeOptions("0, -5, 1.5, abc, 721, 10"), [10]);
+  assert.deepEqual(parsePostponeOptions(""), []);
 });
 
 function shiftThenRestore(original: string, task: string, start: string, minutes: number): string {

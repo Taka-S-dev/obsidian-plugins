@@ -1,9 +1,9 @@
 {
   "id": "dayplanner-notify",
   "name": "Day Planner Notify",
-  "version": "0.1.0",
-  "minAppVersion": "1.5.0",
-  "description": "Makes Day Planner task-start notifications hard to miss: bring window to front, sound, and a snoozable modal.",
+  "version": "0.2.0",
+  "minAppVersion": "1.8.7",
+  "description": "Makes Day Planner task starts hard to miss: brings Obsidian to the front, plays a sound, and lets you postpone the block.",
   "author": "Taka-S-dev",
   "isDesktopOnly": true
 }
