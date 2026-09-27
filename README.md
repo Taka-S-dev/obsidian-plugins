@@ -1,33 +1,34 @@
 # obsidian-plugins
 
-個人用 Obsidian プラグインをまとめたリポジトリ。1 プラグイン = `packages/` 配下の 1 パッケージ。
+English | [日本語](README.ja.md)
 
-| プラグイン | 概要 |
+A collection of Obsidian plugins, one package per plugin under `packages/`. Each plugin shows its interface in Japanese or English, following Obsidian's language setting.
+
+| Plugin | Summary |
 |---|---|
-| [path-links](packages/path-links/README.md) | Windows のパスを「開く＋コピー」ボタンとして表示する |
-| [dayplanner-notify](packages/dayplanner-notify/README.md) | Day Planner のタスク開始通知に前面化・音・スヌーズ付きモーダルを追加する |
+| [path-links](packages/path-links/README.md) | Paste Windows paths as standard Markdown links, then open them or copy the original path |
+| [dayplanner-notify](packages/dayplanner-notify/README.md) | Brings Obsidian to the front with a sound when a Day Planner task starts, with an alert that can postpone it |
 
-## セットアップ
+## Setup
 
-Node.js 24 以上が必要。
+Requires Node.js 24 or later.
 
 ```bash
-git clone <このリポジトリ>
+git clone <this repository>
 cd obsidian-plugins
 npm ci
 ```
 
-## ビルドと Vault への配置
+## Build and install into a vault
 
-`OBSIDIAN_VAULT` に Vault のルートを指定してビルドすると、`<Vault>/.obsidian/plugins/<プラグインID>/` へ
-`main.js`・`manifest.json`・`styles.css` をコピーする。未指定ならビルドのみ。複数の Vault は `;` で区切る。
+With `OBSIDIAN_VAULT` set to a vault's root folder, each build copies `main.js`, `manifest.json` and `styles.css` into `<vault>/.obsidian/plugins/<plugin id>/`. Without it, the build only compiles. Separate several vaults with `;`.
 
 ```powershell
 # PowerShell
 $env:OBSIDIAN_VAULT = "C:\path\to\VaultA;C:\path\to\VaultB"
-npm run build                      # 全プラグイン
-npm run build -w path-links        # 1 つだけ
-npm run dev -w dayplanner-notify   # 変更を監視して自動ビルド・配置
+npm run build                      # all plugins
+npm run build -w path-links        # one plugin
+npm run dev -w dayplanner-notify   # rebuild and install on every change
 ```
 
 ```bash
@@ -35,48 +36,52 @@ npm run dev -w dayplanner-notify   # 変更を監視して自動ビルド・配�
 OBSIDIAN_VAULT="C:/path/to/VaultA" npm run build
 ```
 
-毎回指定しない場合は `setx OBSIDIAN_VAULT "C:\path\to\Vault"` でユーザー環境変数にしておく（新しいターミナルから有効）。
+To avoid setting it every time, run `setx OBSIDIAN_VAULT "C:\path\to\Vault"` once (takes effect in new terminals).
 
-初回配置後は Obsidian の 設定 → コミュニティプラグイン で有効化する。更新後はそのプラグインをオフ→オンにして読み直す。
+After the first install, enable the plugin in Obsidian under Settings → Community plugins. After an update, turn the plugin off and on again to reload it.
 
-## テスト
+## Tests
 
 ```bash
-npm test                     # 全プラグイン
-npm test -w path-links       # 1 つだけ
+npm test                     # all plugins
+npm test -w path-links       # one plugin
 ```
 
-テストは Node.js 組み込みの `node --test` で、TypeScript をそのまま読み込む。
-Obsidian API に依存しない純粋なロジック（`src/` 内の obsidian を import しないファイル）だけを対象にする。
+Tests use Node.js's built-in `node --test`, which loads TypeScript directly.
+They cover the pure logic only: files in `src/` that do not import `obsidian`.
 
-## 構成
+## Layout
 
 ```
-package.json          npm workspaces・共通の devDependencies
-tsconfig.base.json    共通の TypeScript 設定（各パッケージが extends）
-scripts/build.mjs     共通の esbuild ビルド＋Vault 配置
+package.json          npm workspaces and shared devDependencies
+tsconfig.base.json    shared TypeScript settings (each package extends it)
+scripts/build.mjs     shared esbuild build and vault install
 packages/<id>/
-  manifest.json       Obsidian のマニフェスト。id が配置先フォルダ名になる
-  package.json        build / dev / test スクリプト
+  manifest.json       Obsidian manifest; the id is the install folder name
+  package.json        build / dev / test scripts
   tsconfig.json
-  src/main.ts         エントリポイント
-  styles.css          任意
+  src/main.ts         entry point
+  src/i18n.ts         interface text in English and Japanese
+  styles.css          optional
   tests/
+  README.md, README.ja.md
 ```
 
-## プラグインを追加する
+## Adding a plugin
 
-1. `packages/<id>/` を作り、既存パッケージから `package.json`・`tsconfig.json` をコピーして `name` を変える。
-2. `manifest.json` を書く（`id` はフォルダ名と揃える。デスクトップ専用なら `isDesktopOnly: true`）。
-3. `src/main.ts` に `Plugin` を継承したクラスを `export default` する。
-4. ルートで `npm install` してワークスペースに登録する。
+1. Create `packages/<id>/` and copy `package.json` and `tsconfig.json` from an existing package, changing `name`.
+2. Write `manifest.json` (match `id` to the folder name; set `isDesktopOnly: true` for desktop-only plugins).
+3. In `src/main.ts`, `export default` a class that extends `Plugin`.
+4. Run `npm install` at the root to register the workspace.
 
-## 方針
+`.gitignore` is an allowlist. Files outside the listed paths (for example a new top-level folder) are ignored until they are added to it.
 
-- ソースは Vault の外に置く。`node_modules` を Vault や Obsidian Sync に入れないため。
-- `main.js` は生成物なのでコミットしない。
-- 共通処理は 2 つ以上のプラグインで実際に必要になってから `packages/shared` などに切り出す。
+## Principles
 
-## ライセンス
+- Sources live outside the vault, so `node_modules` never reaches the vault or Obsidian Sync.
+- `main.js` is a build output and is not committed.
+- Shared code moves into something like `packages/shared` only once two or more plugins actually need it.
 
-[MIT](LICENSE)。無保証で提供し、利用によって生じた損害について作者は責任を負わない。各プラグインの README の「注意」も参照。
+## License
+
+[MIT](LICENSE). Provided without warranty; the author is not liable for any damage arising from its use. See also the Caution section of each plugin's README.
