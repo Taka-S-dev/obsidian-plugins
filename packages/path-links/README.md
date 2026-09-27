@@ -29,8 +29,19 @@ Notes should read naturally in any Markdown editor (VS Code, GitHub, ...).
    - `https://` URLs become `<…>` autolinks, or `[selection](<URL>)` when text is selected.
 3. In Reading view and Live Preview, `file://` links get a copy button that copies the original Windows path.
 4. Clicking a link opens the folder.
+5. Right-clicking any `file://` link adds "Copy Windows path" to Obsidian's link menu.
 
 Source mode shows the file exactly as stored. In Live Preview the button is hidden while the cursor is inside the link.
+
+### Properties and Bases
+
+`file://` links in note properties open the same way, both in the Properties panel and in Bases tables: Explorer comes to the front, and files that run as programs ask first. These places get no copy button, since Obsidian manages those cells; use "Copy Windows path" from the right-click menu instead. Path Links handles clicks on the link itself only; the rest of the property value behaves as before.
+
+```yaml
+---
+target: "[Reports](<file://server/share/Reports>)"
+---
+```
 
 ## How links open
 

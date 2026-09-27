@@ -9,6 +9,7 @@ const en = {
   copyTitle: "Copy only the original path",
   copyPathLabel: (path: string) => `Copy path: ${path}`,
   pathCopied: "Path copied",
+  menuCopyPath: "Copy Windows path",
   copyFailed: (error: string) => `Could not copy: ${error}`,
   openFailed: (path: string, error: string) => `Could not open: ${path}\n${error}`,
   confirm: {
@@ -33,6 +34,7 @@ const ja: Strings = {
   copyTitle: "元のパスだけをコピー",
   copyPathLabel: (path) => `パスをコピー：${path}`,
   pathCopied: "パスをコピーしました",
+  menuCopyPath: "Windows のパスをコピー",
   copyFailed: (error) => `コピーできませんでした：${error}`,
   openFailed: (path, error) => `開けませんでした：${path}\n${error}`,
   confirm: {

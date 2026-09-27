@@ -7,6 +7,16 @@ import { copyButtons, fileLinkTarget } from "./live-preview.ts";
 import { openPath } from "./open-path.ts";
 import { filePath, InputError, insertion, parseEntries } from "./paths.ts";
 
+/**
+ * The file:// target of a property link (Properties panel or Bases), or null.
+ * Obsidian renders these as a div carrying the URL in data-href rather than as an <a>.
+ */
+function propertyLinkTarget(target: HTMLElement): string | null {
+  const link = target.closest(".metadata-link-inner.external-link");
+  const href = link?.getAttribute("data-href");
+  return href ? filePath(href) : null;
+}
+
 /** Message for a caught error in the user's language. */
 function describe(error: unknown, s: Strings): string {
   if (error instanceof InputError) return s.inputErrors[error.code];
@@ -109,10 +119,12 @@ export default class PathLinksPlugin extends Plugin {
 
     // Live Preview: same copy button and foreground Explorer as in Reading view.
     this.registerEditorExtension(copyButtons(copyPath, s.copyPathLabel));
-    // Capture phase, so Obsidian's own link handling (which opens folders behind the window) never runs.
+    // Capture phase, so Obsidian's own link handling (which opens folders behind the window and
+    // skips the executable check) never runs. Covers Live Preview links and property links,
+    // which Obsidian renders the same way in the Properties panel and in Bases.
     const interceptLinkClick = (event: MouseEvent) => {
       if (event.button !== 0 || !(event.target instanceof HTMLElement)) return;
-      const path = fileLinkTarget(event.target);
+      const path = fileLinkTarget(event.target) ?? propertyLinkTarget(event.target);
       if (path === null) return;
       event.preventDefault();
       event.stopPropagation();
@@ -120,6 +132,15 @@ export default class PathLinksPlugin extends Plugin {
     };
     this.registerDomEvent(document, "mousedown", interceptLinkClick, { capture: true });
     this.registerDomEvent(document, "click", interceptLinkClick, { capture: true });
+
+    // Right-click menu on any external link: body, Properties panel and Bases alike.
+    this.registerEvent(
+      this.app.workspace.on("url-menu", (menu, url) => {
+        const path = filePath(url);
+        if (path === null) return;
+        menu.addItem((item) => item.setTitle(s.menuCopyPath).setIcon("copy").onClick(() => copyPath(path)));
+      }),
+    );
 
     this.addCommand({
       id: "paste-path-links",
