@@ -1,0 +1,9 @@
+{
+  "id": "path-links",
+  "name": "Path Links",
+  "version": "0.3.0",
+  "minAppVersion": "1.5.0",
+  "description": "Windowsのパスを標準のMarkdownリンクとして貼り付け、開く・元のパスをコピーできるようにします。",
+  "author": "Taka-S-dev",
+  "isDesktopOnly": true
+}
