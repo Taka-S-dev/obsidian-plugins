@@ -1,7 +1,7 @@
 {
   "id": "path-links",
   "name": "Path Links",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "minAppVersion": "1.8.7",
   "description": "Paste Windows local and network paths as standard Markdown links, then open them in Explorer or copy the original path.",
   "author": "Taka-S-dev",

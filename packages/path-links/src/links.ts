@@ -15,18 +15,36 @@ export function toFileUri(path: string): string {
   return /^\\\\localhost(?:\\|$)/i.test(path) ? `file://${escaped}` : `file:${escaped}`;
 }
 
-/** Last path segment: C:\a\release\ -> release, \\server\share -> share, C:\ -> C: */
-export function pathLabel(path: string): string {
-  const parts = path.split(/[\\/]+/).filter(Boolean);
-  return parts[parts.length - 1] ?? path;
-}
+const ASCII_PUNCTUATION = /[!-/:-@[-`{-~]/;
+// A "_" next to one of these (or the text's edge) can open or close emphasis.
+const FLANKING = /[\s\p{P}\p{S}]/u;
+const ENTITY = /^&(?:#\d+|#x[0-9a-f]+|[a-z][a-z0-9]*);/i;
 
-/** Escape only what would break or restyle link text; file names cannot contain * < > |. */
+/**
+ * Escape only what would break or restyle a path used as link text, so the source keeps single
+ * backslashes: C:\Users\me stays as is, since "\" before a letter is not an escape.
+ * File names cannot contain * < > |, so those never appear.
+ */
 export function escapeLabel(text: string): string {
-  return text
-    .replace(/([\\[\]`])/g, "\\$1")
-    .replace(/^_/, "\\_")
-    .replace(/_$/, "\\_");
+  const chars = Array.from(text);
+  return chars.map((c, i) => {
+    const prev = chars[i - 1];
+    const next = chars[i + 1];
+    switch (c) {
+      case "\\": // \\server, C:\_tmp, and a trailing C:\ that would escape the closing "]".
+        return next === undefined || ASCII_PUNCTUATION.test(next) ? "\\\\" : c;
+      case "[": case "]": case "`": case "$": // "$" starts math in Obsidian.
+        return `\\${c}`;
+      case "_":
+        return prev === undefined || next === undefined || FLANKING.test(prev) || FLANKING.test(next) ? "\\_" : c;
+      case "~": case "=": case "%": // ~~strike~~, ==highlight==, %%comment%%
+        return prev === c || next === c ? `\\${c}` : c;
+      case "&":
+        return ENTITY.test(chars.slice(i).join("")) ? "\\&" : c;
+      default:
+        return c;
+    }
+  }).join("");
 }
 
 export function isWebUrl(text: string): boolean {
@@ -67,7 +85,7 @@ export function buildLinks(clipboard: string, selection = ""): BuiltLinks {
       return label ? `[${selectionLabel(label)}](<${dest}>)` : `<${dest}>`;
     }
     const [path] = parsePaths(item);
-    const text = label ? selectionLabel(label) : escapeLabel(pathLabel(path));
+    const text = label ? selectionLabel(label) : escapeLabel(path);
     return `[${text}](<${toFileUri(path)}>)`;
   });
 

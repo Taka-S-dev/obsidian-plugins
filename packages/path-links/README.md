@@ -12,11 +12,11 @@ Notes should read naturally in any Markdown editor (VS Code, GitHub, ...).
 
 - Only standard Markdown links are saved. There is no custom syntax, so notes stay readable without the plugin.
 - Link targets keep the path readable. Only `%` and `#`, which would break the link, are percent-encoded.
-- The label is the last folder or file name. A full path as the label doubles every backslash in the source, and the path is already in the target.
+- The label is the original Windows path. Only what Markdown would interpret is escaped (the leading `\\` of a UNC path, a `\` before punctuation, `[` `]` `$` and the like), so most backslashes stay single in the source too.
 
 ```markdown
-[release](<file:///C:/Users/me/project/target/release>)
-[Reports](<file://server/share/Reports>)
+[C:\Users\me\project\target\release](<file:///C:/Users/me/project/target/release>)
+[\\\server\share\Reports](<file://server/share/Reports>)
 <https://example.sharepoint.com/sites/team>
 ```
 

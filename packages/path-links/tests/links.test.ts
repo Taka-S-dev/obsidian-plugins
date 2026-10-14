@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { buildLinks, escapeLabel, findFileLinks, pathLabel, toFileUri } from "../src/links.ts";
+import { buildLinks, escapeLabel, findFileLinks, toFileUri } from "../src/links.ts";
 import { filePath } from "../src/paths.ts";
 
 const PATHS = [
@@ -45,23 +45,22 @@ test("URIs round-trip to the exact path, raw in source or as the rendered href",
   }
 });
 
-test("labels use the last segment", () => {
-  assert.equal(pathLabel(PATHS[0]), "release");
-  assert.equal(pathLabel("C:\\a\\release\\"), "release");
-  assert.equal(pathLabel("\\\\server\\share"), "share");
-  assert.equal(pathLabel("\\\\server"), "server");
-  assert.equal(pathLabel("C:\\"), "C:");
-});
-
-test("labels escape only what would break the link", () => {
+test("labels keep single backslashes and escape only what Markdown would interpret", () => {
+  assert.equal(escapeLabel("C:\\Users\\me\\release"), "C:\\Users\\me\\release");
+  assert.equal(escapeLabel("\\\\server\\share"), "\\\\\\server\\share");
+  assert.equal(escapeLabel("C:\\"), "C:\\\\");
+  assert.equal(escapeLabel("C:\\_tmp"), "C:\\\\\\_tmp");
+  assert.equal(escapeLabel("\\\\server\\c$\\x"), "\\\\\\server\\c\\$\\x");
   assert.equal(escapeLabel("a[1]`b`"), "a\\[1\\]\\`b\\`");
   assert.equal(escapeLabel("my_file_name.txt"), "my_file_name.txt");
   assert.equal(escapeLabel("_draft_"), "\\_draft\\_");
+  assert.equal(escapeLabel("a ~~b~~ a~b"), "a \\~\\~b\\~\\~ a~b");
+  assert.equal(escapeLabel("a==b 100%% R&D &amp;"), "a\\=\\=b 100\\%\\% R&D \\&amp;");
 });
 
-test("one path becomes an inline link named after the folder", () => {
+test("one path becomes an inline link labeled with the full path", () => {
   assert.deepEqual(buildLinks(`"${PATHS[0]}"`), {
-    text: "[release](<file:///C:/Users/me/projects/app/target/release>)",
+    text: "[C:\\Users\\me\\projects\\app\\target\\release](<file:///C:/Users/me/projects/app/target/release>)",
     multiline: false,
   });
 });
@@ -78,7 +77,7 @@ test("web URLs become autolinks, or labeled links with a selection", () => {
 
 test("several lines become a list and ignore the selection", () => {
   assert.deepEqual(buildLinks('"C:\\a"\r\n\\\\server\\share\r\nhttps://example.com\r\n', "ignored"), {
-    text: "- [a](<file:///C:/a>)\n- [share](<file://server/share>)\n- <https://example.com>",
+    text: "- [C:\\a](<file:///C:/a>)\n- [\\\\\\server\\share](<file://server/share>)\n- <https://example.com>",
     multiline: true,
   });
 });

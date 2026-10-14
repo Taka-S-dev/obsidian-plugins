@@ -12,11 +12,11 @@ Windows のローカルパス・共有パス（UNC）を、標準の Markdown �
 
 - 保存するのは標準の Markdown リンクだけ。独自記法を使わないので、プラグインを外してもノートはそのまま読める。
 - リンク先はパスが読める形で書く。パーセントエンコードするのはリンクを壊す `%` と `#` だけ。
-- 表示名は末尾のフォルダ名・ファイル名。フルパスを表示名にするとソース上でバックスラッシュが二重になり読みにくいため。パスはリンク先で分かる。
+- 表示名は元の Windows のフルパス。エスケープは Markdown が解釈してしまう所（UNC 先頭の `\\`、記号の直前の `\`、`[` `]` `$` など）だけに付けるので、ソースでもほとんどのバックスラッシュは 1 つのまま。
 
 ```markdown
-[release](<file:///C:/Users/me/project/target/release>)
-[部署](<file://server/share/部署>)
+[C:\Users\me\project\target\release](<file:///C:/Users/me/project/target/release>)
+[\\\server\share\部署](<file://server/share/部署>)
 <https://example.sharepoint.com/sites/team>
 ```
 
