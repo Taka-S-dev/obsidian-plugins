@@ -3,6 +3,7 @@
 
 const en = {
   pasteCommand: "Paste clipboard paths and URLs as links",
+  pastedBelowProperties: "The cursor was not in the note body, so the links went below the properties.",
   openTitle: (path: string) => `Open: ${path}`,
   copy: "Copy",
   copied: "Copied",
@@ -28,6 +29,7 @@ export type Strings = typeof en;
 
 const ja: Strings = {
   pasteCommand: "クリップボードのパス・URLをリンクとして貼り付け",
+  pastedBelowProperties: "カーソルが本文になかったため、プロパティの下に貼り付けました。",
   openTitle: (path) => `開く：${path}`,
   copy: "コピー",
   copied: "コピー済み",

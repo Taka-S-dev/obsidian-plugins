@@ -26,6 +26,7 @@ Notes should read naturally in any Markdown editor (VS Code, GitHub, ...).
 2. Run "Path Links: Paste clipboard paths and URLs as links" from the command palette, or bind it to a hotkey.
    - Selected text becomes the label.
    - Several lines become a bullet list.
+   - If the cursor is in or above the frontmatter (for example, right after opening a note, when it sits hidden behind the Properties panel), the links go on the line right below the frontmatter instead, so the properties are never broken.
    - `https://` URLs become `<…>` autolinks, or `[selection](<URL>)` when text is selected.
 3. In Reading view and Live Preview, `file://` links get a copy button that copies the original Windows path.
 4. Clicking a link opens the folder.

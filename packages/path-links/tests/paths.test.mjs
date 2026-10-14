@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { parsePaths, insertion, filePath, parseEntries } from "../src/paths.ts";
+import { parsePaths, insertion, filePath, frontmatterEnd, parseEntries } from "../src/paths.ts";
 
 test("the actual sample note parses both raw and labeled paths", () => {
   const note = readFileSync(new URL("./fixtures/sample-note.md", import.meta.url), "utf8");
@@ -53,4 +53,18 @@ test("root paths supported, invalid input rejected as a whole", () => {
 test("insertion separates a block from surrounding paragraph text", () => {
   assert.equal(insertion("BLOCK", "before", "after"), "\n\nBLOCK\n\n");
   assert.equal(insertion("BLOCK", "", ""), "BLOCK\n");
+});
+
+test("frontmatterEnd finds the closing line only when frontmatter starts the note", () => {
+  const end = (text) => {
+    const lines = text.split("\n");
+    return frontmatterEnd(lines.length, (line) => lines[line]);
+  };
+  assert.equal(end("---\ntags: [a]\n---\n\nbody"), 2);
+  assert.equal(end("---\n---"), 1);
+  assert.equal(end("--- \ntitle: x\n---  \nbody"), 2);
+  assert.equal(end("body\n---\ntitle: x\n---"), -1);
+  assert.equal(end("---\ntitle: x\nno closing line"), -1);
+  assert.equal(end("# heading\n\n---\n"), -1);
+  assert.equal(end(""), -1);
 });

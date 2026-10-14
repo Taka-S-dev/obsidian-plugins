@@ -29,6 +29,18 @@ export function insertion(block: string, before: string, after: string): string 
 }
 
 /**
+ * Line number of the "---" that closes the frontmatter, or -1 when there is none.
+ * Like Obsidian, frontmatter must start on the very first line.
+ */
+export function frontmatterEnd(lineCount: number, getLine: (line: number) => string): number {
+  if (lineCount === 0 || getLine(0).trimEnd() !== "---") return -1;
+  for (let line = 1; line < lineCount; line++) {
+    if (getLine(line).trimEnd() === "---") return line;
+  }
+  return -1;
+}
+
+/**
  * file:// URI -> Windows path, following RFC 8089 and how Windows itself resolves them:
  *   file:///C:/a            -> C:\a
  *   file://server/share     -> \\server\share

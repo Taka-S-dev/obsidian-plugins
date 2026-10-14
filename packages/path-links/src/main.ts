@@ -5,7 +5,7 @@ import { stringsFor, type Strings } from "./i18n.ts";
 import { buildLinks } from "./links.ts";
 import { copyButtons, fileLinkTarget } from "./live-preview.ts";
 import { openPath } from "./open-path.ts";
-import { filePath, InputError, insertion, parseEntries } from "./paths.ts";
+import { filePath, frontmatterEnd, InputError, insertion, parseEntries } from "./paths.ts";
 
 /**
  * The file:// target of a property link (Properties panel or Bases), or null.
@@ -147,6 +147,20 @@ export default class PathLinksPlugin extends Plugin {
       name: s.pasteCommand,
       editorCallback: (editor) => {
         try {
+          // A freshly opened note keeps its cursor at the very top, hidden behind the Properties
+          // panel in Live Preview. Writing there would break the frontmatter, so put the links
+          // on their own line right below it instead.
+          const end = frontmatterEnd(editor.lineCount(), (line) => editor.getLine(line));
+          if (end >= 0 && editor.getCursor("from").line <= end) {
+            const { text } = buildLinks(clipboard.readText());
+            const line = end + 1;
+            if (line < editor.lineCount()) editor.replaceRange(insertion(text, "", editor.getLine(line)), { line, ch: 0 });
+            else editor.replaceRange(`\n${text}`, { line: end, ch: editor.getLine(end).length });
+            const added = text.split("\n");
+            editor.setCursor({ line: line + added.length - 1, ch: added[added.length - 1].length });
+            new Notice(s.pastedBelowProperties);
+            return;
+          }
           const { text, multiline } = buildLinks(clipboard.readText(), editor.getSelection());
           if (!multiline) {
             editor.replaceSelection(text);
