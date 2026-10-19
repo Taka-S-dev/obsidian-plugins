@@ -33,4 +33,7 @@ id_rsa*
 secrets.*
 credentials.*
 node_modules/
-CLAUDE.md
+
+# Source and test folders hold code; notes kept next to it stay local.
+/packages/*/src/**/*.md
+/packages/*/tests/*.md
