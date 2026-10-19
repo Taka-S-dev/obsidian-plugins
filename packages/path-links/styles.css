@@ -26,3 +26,16 @@
 .path-links-error { color: var(--text-error); }
 .path-links-inline button.path-links-inline-copy:hover,
 .markdown-source-view button.path-links-lp-copy:hover { color: var(--text-normal); background: var(--background-modifier-hover); }
+
+/* While a link is opening: spinner after the link (a widget in Live Preview), repeat clicks are ignored. */
+.path-links-opening { cursor: progress; }
+.path-links-opening::after { content: ""; }
+.path-links-opening::after,
+.path-links-spinner {
+  display: inline-block; box-sizing: border-box;
+  width: 0.8em; height: 0.8em; margin-left: 0.35em; vertical-align: -0.1em;
+  border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%;
+  animation: path-links-spin 0.7s linear infinite;
+}
+@keyframes path-links-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .path-links-opening::after, .path-links-spinner { animation-duration: 2.8s; } }

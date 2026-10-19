@@ -3,7 +3,7 @@ import { clipboard } from "electron";
 import { confirmRiskyOpen } from "./confirm.ts";
 import { stringsFor, type Strings } from "./i18n.ts";
 import { buildLinks } from "./links.ts";
-import { copyButtons, fileLinkTarget } from "./live-preview.ts";
+import { copyButtons, fileLinkTarget, showSpinner, spinners } from "./live-preview.ts";
 import { openPath } from "./open-path.ts";
 import { filePath, frontmatterEnd, InputError, insertion, parseEntries } from "./paths.ts";
 
@@ -17,6 +17,17 @@ function propertyLinkTarget(target: HTMLElement): string | null {
   return href ? filePath(href) : null;
 }
 
+/**
+ * Spinner on a clicked link until the returned function runs. Live Preview links get an editor
+ * widget instead of a class, since the editor reverts class changes on the links it renders.
+ */
+function spinnerOn(el: HTMLElement): () => void {
+  const stop = showSpinner(el);
+  if (stop) return stop;
+  el.addClass("path-links-opening");
+  return () => el.removeClass("path-links-opening");
+}
+
 /** Message for a caught error in the user's language. */
 function describe(error: unknown, s: Strings): string {
   if (error instanceof InputError) return s.inputErrors[error.code];
@@ -28,7 +39,7 @@ class PathLinksBlock extends MarkdownRenderChild {
     container: HTMLElement,
     private source: string,
     private s: Strings,
-    private open: (path: string) => Promise<void>,
+    private open: (path: string, button: HTMLElement) => Promise<void>,
   ) {
     super(container);
   }
@@ -57,7 +68,7 @@ class PathLinksBlock extends MarkdownRenderChild {
         event.preventDefault();
         event.stopPropagation();
         open.disabled = true;
-        try { await this.open(path); }
+        try { await this.open(path, open); }
         finally { open.disabled = false; }
       });
       const copy = row.createEl("button", { text: s.copy, cls: "path-links-copy" });
@@ -83,13 +94,14 @@ class PathLinksBlock extends MarkdownRenderChild {
 
 export default class PathLinksPlugin extends Plugin {
   private s: Strings = stringsFor("en");
+  private opening = new Set<string>();
 
   onload(): void {
     const s = (this.s = stringsFor(getLanguage()));
     const copyPath = (path: string) => this.copyPath(path);
 
     this.registerMarkdownCodeBlockProcessor("path-links", (source, el, ctx) => {
-      ctx.addChild(new PathLinksBlock(el, source, s, (path) => this.openAndReport(path)));
+      ctx.addChild(new PathLinksBlock(el, source, s, (path, button) => this.openAndReport(path, button)));
     });
     this.registerMarkdownPostProcessor((el, ctx) => {
       for (const link of Array.from(el.querySelectorAll<HTMLAnchorElement>('a[href]'))) {
@@ -104,7 +116,7 @@ export default class PathLinksPlugin extends Plugin {
         child.registerDomEvent(link, "click", event => {
           event.preventDefault();
           event.stopPropagation();
-          void this.openAndReport(path);
+          void this.openAndReport(path, link);
         });
         const label = s.copyPathLabel(path);
         const copy = wrapper.createEl("button", { cls: "path-links-inline-copy", attr: { title: label, "aria-label": label } });
@@ -118,7 +130,7 @@ export default class PathLinksPlugin extends Plugin {
     });
 
     // Live Preview: same copy button and foreground Explorer as in Reading view.
-    this.registerEditorExtension(copyButtons(copyPath, s.copyPathLabel));
+    this.registerEditorExtension([copyButtons(copyPath, s.copyPathLabel), spinners]);
     // Capture phase, so Obsidian's own link handling (which opens folders behind the window and
     // skips the executable check) never runs. Covers Live Preview links and property links,
     // which Obsidian renders the same way in the Properties panel and in Bases.
@@ -128,7 +140,9 @@ export default class PathLinksPlugin extends Plugin {
       if (path === null) return;
       event.preventDefault();
       event.stopPropagation();
-      if (event.type === "click") void this.openAndReport(path);
+      if (event.type !== "click") return;
+      const link = event.target.closest<HTMLElement>(".cm-link, .metadata-link-inner") ?? undefined;
+      void this.openAndReport(path, link);
     };
     this.registerDomEvent(document, "mousedown", interceptLinkClick, { capture: true });
     this.registerDomEvent(document, "click", interceptLinkClick, { capture: true });
@@ -176,12 +190,33 @@ export default class PathLinksPlugin extends Plugin {
     });
   }
 
-  /** Every open goes through here, so files Windows would execute always ask first. */
-  private async openAndReport(path: string): Promise<void> {
+  /**
+   * Every open goes through here, so files Windows would execute always ask first.
+   * Repeat clicks on a path that is still opening are ignored, and the clicked element
+   * shows a spinner meanwhile; an unreachable share can take many seconds to answer.
+   * Cancelling the confirmation or failing to open releases the link at once.
+   */
+  private async openAndReport(path: string, el?: HTMLElement): Promise<void> {
+    if (this.opening.has(path)) return;
+    this.opening.add(path);
+    const stopSpinner = el ? spinnerOn(el) : () => {};
+    let notice: Notice | undefined;
+    const slow = window.setTimeout(() => { notice = new Notice(this.s.opening(path), 0); }, 1500);
+    let launched = false;
     try {
       const error = await openPath(path, (p) => confirmRiskyOpen(this.app, p, this.s));
       if (error) new Notice(this.s.openFailed(path, error), 8000);
+      launched = error === "";
     } catch (error) { new Notice(this.s.openFailed(path, String(error)), 8000); }
+    finally {
+      window.clearTimeout(slow);
+      notice?.hide();
+      // Explorer shows its window a moment after it starts. Until then keep the spinner and
+      // ignore clicks, or the spinner flashes unseen and a click in that gap opens a second window.
+      const settle = () => { stopSpinner(); this.opening.delete(path); };
+      if (launched) window.setTimeout(settle, 1000);
+      else settle();
+    }
   }
 
   private copyPath(path: string): void {

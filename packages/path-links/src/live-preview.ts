@@ -1,4 +1,4 @@
-import { RangeSetBuilder } from "@codemirror/state";
+import { RangeSetBuilder, StateEffect, StateField } from "@codemirror/state";
 import { Decoration, type DecorationSet, EditorView, ViewPlugin, type ViewUpdate, WidgetType } from "@codemirror/view";
 import { editorLivePreviewField, setIcon } from "obsidian";
 import { findFileLinks, type FileLinkRange } from "./links.ts";
@@ -97,16 +97,64 @@ export function copyButtons(onCopy: (path: string) => void, label: (path: string
   );
 }
 
+/** The Live Preview editor and file link behind a rendered link element, or null. */
+function liveLinkAt(target: HTMLElement): { view: EditorView; link: FileLinkRange } | null {
+  const el = target.closest(".markdown-source-view.is-live-preview .cm-link");
+  if (!(el instanceof HTMLElement)) return null;
+  const view = EditorView.findFromDOM(el);
+  if (view === null || !isLivePreview(view)) return null;
+  const pos = view.posAtDOM(el);
+  const link = fileLinksAround(view, pos).find((l) => l.from <= pos && pos <= l.to);
+  return link ? { view, link } : null;
+}
+
 /**
  * The file:// target behind a rendered Live Preview link element, or null.
  * The rendered link hides its URL, so map the element back to its source line.
  */
 export function fileLinkTarget(target: HTMLElement): string | null {
-  const link = target.closest(".markdown-source-view.is-live-preview .cm-link");
-  if (!(link instanceof HTMLElement)) return null;
-  const view = EditorView.findFromDOM(link);
-  if (view === null || !isLivePreview(view)) return null;
-  const pos = view.posAtDOM(link);
-  const hit = fileLinksAround(view, pos).find((l) => l.from <= pos && pos <= l.to);
-  return hit?.path ?? null;
+  return liveLinkAt(target)?.link.path ?? null;
+}
+
+class Spinner extends WidgetType {
+  toDOM(): HTMLElement {
+    const el = document.createElement("span");
+    el.className = "path-links-spinner";
+    el.setAttribute("aria-hidden", "true");
+    return el;
+  }
+}
+
+/** Adds (pos >= 0) or removes (pos < 0) the spinner with this id. */
+const setSpinner = StateEffect.define<{ id: number; pos: number }>();
+let nextSpinnerId = 0;
+
+/** Spinners after links that are opening. Needed in the editor too: class changes on rendered links are reverted. */
+export const spinners = StateField.define<DecorationSet>({
+  create: () => Decoration.none,
+  update(set, tr) {
+    set = set.map(tr.changes);
+    for (const e of tr.effects) {
+      if (!e.is(setSpinner)) continue;
+      const { id, pos } = e.value;
+      set = pos < 0
+        ? set.update({ filter: (_from, _to, deco) => deco.spec.id !== id })
+        : set.update({ add: [Decoration.widget({ widget: new Spinner(), side: 2, id }).range(pos)] });
+    }
+    return set;
+  },
+  provide: (field) => EditorView.decorations.from(field),
+});
+
+/** Shows a spinner after the Live Preview link at target; returns the function that removes it, or null. */
+export function showSpinner(target: HTMLElement): (() => void) | null {
+  const hit = liveLinkAt(target);
+  if (!hit) return null;
+  const { view, link } = hit;
+  const id = ++nextSpinnerId;
+  view.dispatch({ effects: setSpinner.of({ id, pos: link.to }) });
+  return () => {
+    // The note may have been closed while opening.
+    try { view.dispatch({ effects: setSpinner.of({ id, pos: -1 }) }); } catch { /* view destroyed */ }
+  };
 }
