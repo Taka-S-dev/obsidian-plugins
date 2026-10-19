@@ -1,4 +1,4 @@
-import { getLanguage, MarkdownRenderChild, Notice, Plugin, setIcon } from "obsidian";
+import { type Editor, getLanguage, MarkdownRenderChild, Notice, Plugin, setIcon } from "obsidian";
 import { clipboard } from "electron";
 import { confirmRiskyOpen } from "./confirm.ts";
 import { stringsFor, type Strings } from "./i18n.ts";
@@ -159,35 +159,47 @@ export default class PathLinksPlugin extends Plugin {
     this.addCommand({
       id: "paste-path-links",
       name: s.pasteCommand,
-      editorCallback: (editor) => {
-        try {
-          // A freshly opened note keeps its cursor at the very top, hidden behind the Properties
-          // panel in Live Preview. Writing there would break the frontmatter, so put the links
-          // on their own line right below it instead.
-          const end = frontmatterEnd(editor.lineCount(), (line) => editor.getLine(line));
-          if (end >= 0 && editor.getCursor("from").line <= end) {
-            const { text } = buildLinks(clipboard.readText());
-            const line = end + 1;
-            if (line < editor.lineCount()) editor.replaceRange(insertion(text, "", editor.getLine(line)), { line, ch: 0 });
-            else editor.replaceRange(`\n${text}`, { line: end, ch: editor.getLine(end).length });
-            const added = text.split("\n");
-            editor.setCursor({ line: line + added.length - 1, ch: added[added.length - 1].length });
-            new Notice(s.pastedBelowProperties);
-            return;
-          }
-          const { text, multiline } = buildLinks(clipboard.readText(), editor.getSelection());
-          if (!multiline) {
-            editor.replaceSelection(text);
-            return;
-          }
-          const from = editor.getCursor("from");
-          const to = editor.getCursor("to");
-          const before = editor.getLine(from.line).slice(0, from.ch);
-          const after = editor.getLine(to.line).slice(to.ch);
-          editor.replaceSelection(insertion(text, before, after));
-        } catch (error) { new Notice(describe(error, s)); }
+      // editorCallback keeps the command limited to notes being edited. The paste itself waits
+      // a tick: run from the command palette, the command fires before the palette has closed
+      // and handed the editor back, and on some systems the selection read then is not the one
+      // on screen yet, so the links landed elsewhere in the note.
+      editorCallback: () => {
+        window.setTimeout(() => {
+          const editor = this.app.workspace.activeEditor?.editor;
+          if (editor) this.pasteLinks(editor);
+        }, 0);
       }
     });
+  }
+
+  private pasteLinks(editor: Editor): void {
+    const { s } = this;
+    try {
+      // A freshly opened note keeps its cursor at the very top, hidden behind the Properties
+      // panel in Live Preview. Writing there would break the frontmatter, so put the links
+      // on their own line right below it instead.
+      const end = frontmatterEnd(editor.lineCount(), (line) => editor.getLine(line));
+      if (end >= 0 && editor.getCursor("from").line <= end) {
+        const { text } = buildLinks(clipboard.readText());
+        const line = end + 1;
+        if (line < editor.lineCount()) editor.replaceRange(insertion(text, "", editor.getLine(line)), { line, ch: 0 });
+        else editor.replaceRange(`\n${text}`, { line: end, ch: editor.getLine(end).length });
+        const added = text.split("\n");
+        editor.setCursor({ line: line + added.length - 1, ch: added[added.length - 1].length });
+        new Notice(s.pastedBelowProperties);
+        return;
+      }
+      const { text, multiline } = buildLinks(clipboard.readText(), editor.getSelection());
+      if (!multiline) {
+        editor.replaceSelection(text);
+        return;
+      }
+      const from = editor.getCursor("from");
+      const to = editor.getCursor("to");
+      const before = editor.getLine(from.line).slice(0, from.ch);
+      const after = editor.getLine(to.line).slice(to.ch);
+      editor.replaceSelection(insertion(text, before, after));
+    } catch (error) { new Notice(describe(error, s)); }
   }
 
   /**
