@@ -29,7 +29,7 @@ Notes should read naturally in any Markdown editor (VS Code, GitHub, ...).
    - If the cursor is in or above the frontmatter (for example, right after opening a note, when it sits hidden behind the Properties panel), the links go on the line right below the frontmatter instead, so the properties are never broken.
    - `https://` URLs become `<…>` autolinks, or `[selection](<URL>)` when text is selected.
 3. In Reading view and Live Preview, `file://` links get a copy button that copies the original Windows path.
-4. Clicking a link opens the folder.
+4. Clicking a link opens the folder. A spinner shows after the link while it opens, and further clicks on it meanwhile are ignored, so one click opens one Explorer window. A link that takes longer than 1.5 seconds, such as an unreachable network share, also shows a notice.
 5. Right-clicking any `file://` link adds "Copy Windows path" to Obsidian's link menu.
 
 Source mode shows the file exactly as stored. In Live Preview the button is hidden while the cursor is inside the link.
