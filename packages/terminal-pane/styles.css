@@ -1,0 +1,121 @@
+/* The pane: a row of tabs, then the terminal of the selected tab. */
+.terminal-pane-view.view-content {
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  overflow: hidden;
+}
+
+.terminal-pane-bar {
+  display: flex;
+  align-items: center;
+  flex: 0 0 auto;
+  gap: var(--size-4-1);
+  padding: var(--size-4-1) var(--size-4-2);
+  border-bottom: var(--border-width) solid var(--background-modifier-border);
+}
+
+/* Tabs scroll sideways when there are more than fit. */
+.terminal-pane-tabs {
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+  gap: var(--size-4-1);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.terminal-pane-tab {
+  display: flex;
+  align-items: center;
+  flex: 0 0 auto;
+  max-width: 12em;
+  gap: var(--size-2-1);
+  padding: var(--size-2-1) var(--size-2-1) var(--size-2-1) var(--size-4-2);
+  border-radius: var(--radius-s);
+  font-size: var(--font-ui-small);
+  color: var(--text-muted);
+  cursor: var(--cursor);
+}
+
+.terminal-pane-tab:hover {
+  background-color: var(--background-modifier-hover);
+  color: var(--text-normal);
+}
+
+.terminal-pane-tab.is-active {
+  background-color: var(--background-modifier-active-hover);
+  color: var(--text-normal);
+}
+
+.terminal-pane-tab:focus-visible {
+  box-shadow: 0 0 0 2px var(--background-modifier-border-focus);
+  outline: none;
+}
+
+/* A tab whose program has ended. */
+.terminal-pane-tab.is-exited .terminal-pane-tab-title {
+  font-style: italic;
+  opacity: 0.6;
+}
+
+.terminal-pane-tab-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The close button shows on the selected tab and on hover, like Obsidian's own tabs. */
+.terminal-pane-tab-close {
+  padding: 2px;
+  visibility: hidden;
+}
+
+.terminal-pane-tab.is-active .terminal-pane-tab-close,
+.terminal-pane-tab:hover .terminal-pane-tab-close {
+  visibility: visible;
+}
+
+.terminal-pane-tab-close svg {
+  width: var(--icon-xs);
+  height: var(--icon-xs);
+}
+
+.terminal-pane-actions {
+  display: flex;
+  flex: 0 0 auto;
+}
+
+/* The space below the tabs; the terminal is fitted to it. */
+.terminal-pane-body {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+/*
+ * Positioned against the body, so the terminal's own size can never change the space it is
+ * fitted to. Sized by its content instead, fitting would grow and shrink it by a row every frame.
+ */
+.terminal-pane-host {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  box-sizing: border-box;
+  /* The fit addon subtracts this padding when sizing the terminal. */
+  padding: 4px 0 4px 8px;
+}
+
+.terminal-pane-host.is-hidden {
+  display: none;
+}
+
+.terminal-pane-profile .setting-item-control {
+  flex-wrap: nowrap;
+}
+
+.terminal-pane-profile .terminal-pane-command {
+  flex: 1;
+  min-width: 14em;
+  font-family: var(--font-monospace);
+}
