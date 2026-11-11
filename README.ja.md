@@ -8,6 +8,7 @@ Obsidian プラグインをまとめたリポジトリ。1 プラグイン = `pa
 |---|---|
 | [path-links](packages/path-links/README.ja.md) | Windows のパスを標準の Markdown リンクとして貼り付け、開く・コピーできるようにする |
 | [dayplanner-notify](packages/dayplanner-notify/README.ja.md) | Day Planner のタスク開始を前面化・音で知らせ、その場で延期できるアラートを追加する |
+| [terminal-pane](packages/terminal-pane/README.ja.md) | シェル、GitHub Copilot CLI、自作のターミナルプログラムを、タブ付きのペインで Vault のフォルダから動かす |
 
 ## セットアップ
 
