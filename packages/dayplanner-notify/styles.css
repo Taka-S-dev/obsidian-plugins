@@ -39,3 +39,20 @@
 .dayplanner-notify-undo {
   margin-left: 8px;
 }
+
+/* A click outside the alert does not close it; a short shake shows that it is waiting for OK. */
+.modal.dayplanner-notify-nudge {
+  animation: dayplanner-notify-nudge 0.3s ease-in-out;
+}
+
+@keyframes dayplanner-notify-nudge {
+  25% { transform: translateX(-6px); }
+  75% { transform: translateX(6px); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .modal.dayplanner-notify-nudge {
+    animation: none;
+    box-shadow: 0 0 0 2px var(--interactive-accent);
+  }
+}

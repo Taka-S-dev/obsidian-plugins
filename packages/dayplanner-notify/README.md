@@ -12,6 +12,7 @@ When Day Planner announces a task start (its `Task started: …` notification), 
 - Plays a short beep
 - Opens an alert with the task, its time, and buttons to postpone it (+15 / +30 / +45 / +60 min), open the note, or dismiss it
 - Repeats the beep and flashes the taskbar until the alert is closed (without stealing focus again)
+- Keeps the alert open until you close it with OK, × or Esc; a click outside it only shakes it
 
 Day Planner decides when a task starts; this plugin has no parsing or scheduling of its own.
 The alert and sound come from inside Obsidian, separately from the OS notification, so Windows Do Not Disturb does not hide them.

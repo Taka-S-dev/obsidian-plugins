@@ -19,6 +19,7 @@ export class TaskStartModal extends Modal {
   onOpen(): void {
     const { contentEl, s } = this;
     contentEl.addClass("dayplanner-notify-modal");
+    this.keepOpenOnOutsideClick();
     // The task is what matters; the status is a small label above it.
     contentEl.createDiv({ text: s.starting, cls: "dayplanner-notify-label" });
     contentEl.createDiv({ text: this.start.task, cls: "dayplanner-notify-task" });
@@ -60,5 +61,25 @@ export class TaskStartModal extends Modal {
   onClose(): void {
     this.contentEl.empty();
     this.actions.onClosed();
+  }
+
+  /**
+   * Obsidian closes a modal when its backdrop is clicked, so a stray click would dismiss the alert
+   * unseen. It closes only with OK, the close button or Esc; a click outside nudges it instead.
+   */
+  private keepOpenOnOutsideClick(): void {
+    const backdrop = this.containerEl.querySelector(".modal-bg");
+    if (!backdrop) return;
+    const stop = (event: Event) => {
+      if (event.target !== backdrop) return;
+      event.stopPropagation();
+      if (event.type !== "click") return;
+      this.modalEl.removeClass("dayplanner-notify-nudge");
+      // Reading offsetWidth restarts the animation when the backdrop is clicked again.
+      void this.modalEl.offsetWidth;
+      this.modalEl.addClass("dayplanner-notify-nudge");
+    };
+    // Capture on the container runs before the backdrop's own listener.
+    for (const type of ["pointerdown", "mousedown", "click"]) this.containerEl.addEventListener(type, stop, true);
   }
 }
