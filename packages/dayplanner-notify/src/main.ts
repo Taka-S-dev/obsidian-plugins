@@ -3,12 +3,21 @@ import { TaskStartModal } from "./alert-modal";
 import { beep, bringToFront } from "./attention";
 import { stringsFor, type Strings } from "./i18n";
 import { formatTaskStartTitle, parseTaskStartTitle, type TaskStart } from "./match";
-import { rescheduleBlock, restoreLine, startMinutesOf } from "./reschedule";
+import { companionBlocks, listBlocks, rescheduleBlock, restoreLine, startMinutesOf } from "./reschedule";
 import { DEFAULT_SETTINGS, mergeSettings, NotifySettingTab, type NotifySettings } from "./settings";
 
 const DAY_PLANNER_ID = "obsidian-day-planner";
 const UNDO_NOTICE_MS = 8_000;
 const SUPPRESS_AFTER_UNDO_MS = 15_000;
+/** Day Planner's first check after Obsidian starts falls within this time after the layout is ready. */
+const CATCH_UP_MS = 2 * 60_000;
+const DEFAULT_DURATION_MINUTES = 30;
+
+/** The parts of Day Planner's settings this plugin reads. */
+interface DayPlannerSettings {
+  showTaskNotification?: boolean;
+  defaultDurationMinutes?: number;
+}
 
 interface DailyNoteOptions {
   folder?: string;
@@ -22,6 +31,9 @@ export default class DayPlannerNotify extends Plugin {
   private modals = new Set<TaskStartModal>();
   /** Task name -> time (ms) until which Day Planner's notification for it is ignored. */
   private suppressed = new Map<string, number>();
+  /** Until this time (ms), the first announcement may be Day Planner's start-up check. */
+  private catchUpUntil = 0;
+  private announced = false;
 
   async onload(): Promise<void> {
     this.s = stringsFor(getLanguage());
@@ -43,7 +55,10 @@ export default class DayPlannerNotify extends Plugin {
       },
     });
 
-    this.app.workspace.onLayoutReady(() => this.checkDayPlanner());
+    this.app.workspace.onLayoutReady(() => {
+      this.catchUpUntil = Date.now() + CATCH_UP_MS;
+      this.checkDayPlanner();
+    });
   }
 
   onunload(): void {
@@ -95,11 +110,39 @@ export default class DayPlannerNotify extends Plugin {
       }
     }
     n.addEventListener("click", () => bringToFront("front"));
-    this.alert(start);
+    const catchUp = !this.announced && Date.now() < this.catchUpUntil;
+    this.announced = true;
+    void this.alertWithCompanions(start, catchUp);
+  }
+
+  /**
+   * Day Planner announces only the first of the blocks that start at once (and, right after
+   * Obsidian starts, of all blocks already in progress). The others are read from today's daily
+   * note and shown in the same alert.
+   */
+  private async alertWithCompanions(start: TaskStart, catchUp: boolean): Promise<void> {
+    const firedOn = window.moment();
+    const startMinutes = startMinutesOf(start.time);
+    const file = this.dailyNoteFile(firedOn);
+    let others: TaskStart[] = [];
+    if (start.task !== this.s.testTask && startMinutes !== null && file !== null) {
+      try {
+        const blocks = listBlocks(await this.app.vault.cachedRead(file));
+        const duration = this.dayPlannerSettings()?.defaultDurationMinutes;
+        others = companionBlocks(blocks, { task: start.task, start: startMinutes }, {
+          now: firedOn.hours() * 60 + firedOn.minutes(),
+          catchUp,
+          defaultDuration: typeof duration === "number" && duration > 0 ? duration : DEFAULT_DURATION_MINUTES,
+        }).map((b) => ({ task: b.task, time: b.time }));
+      } catch (e) {
+        console.error("[dayplanner-notify] could not read the daily note", e);
+      }
+    }
+    this.alert([start, ...others], { firedOn });
   }
 
   /** quiet: reopen the modal only, without sound, focus stealing or repeats (used after undo). */
-  private alert(start: TaskStart, options: { quiet?: boolean; firedOn?: moment.Moment } = {}): void {
+  private alert(starts: TaskStart[], options: { quiet?: boolean; firedOn?: moment.Moment } = {}): void {
     const s = this.settings;
     const quiet = options.quiet === true;
     // The block lives in the note of the day it fired, even if the button is pressed after midnight.
@@ -117,9 +160,9 @@ export default class DayPlannerNotify extends Plugin {
       repeatTimer = null;
     };
 
-    const modal = new TaskStartModal(this.app, start, this.s, {
-      postponeOptions: startMinutesOf(start.time) === null ? [] : s.postponeOptions,
-      onPostpone: (minutes) => this.postponeBlock(start, firedOn, minutes),
+    const modal = new TaskStartModal(this.app, starts, this.s, {
+      postponeOptions: (start) => (startMinutesOf(start.time) === null ? [] : s.postponeOptions),
+      onPostpone: (start, minutes) => this.postponeBlock(start, firedOn, minutes),
       onOpenNote: () => this.openTodayNote(),
       onClosed: () => {
         stopRepeat();
@@ -154,7 +197,7 @@ export default class DayPlannerNotify extends Plugin {
   private async postponeBlock(start: TaskStart, day: moment.Moment, minutes: number): Promise<string | null> {
     const file = this.dailyNoteFile(day);
     if (file === null) return this.s.errors.noDailyNote;
-    return this.postponeBlockInFile(file, start, minutes, () => this.alert(start, { quiet: true, firedOn: day }));
+    return this.postponeBlockInFile(file, start, minutes, () => this.alert([start], { quiet: true, firedOn: day }));
   }
 
   private async postponeBlockInFile(
@@ -246,13 +289,24 @@ export default class DayPlannerNotify extends Plugin {
     new Notification(title);
   }
 
-  private checkDayPlanner(): void {
+  private dayPlanner(): { getSettings?: () => DayPlannerSettings } | undefined {
     const plugins = (this.app as unknown as { plugins: { plugins: Record<string, unknown> } }).plugins.plugins;
-    const dp = plugins[DAY_PLANNER_ID] as { getSettings?: () => { showTaskNotification?: boolean } } | undefined;
-    if (dp === undefined) {
+    return plugins[DAY_PLANNER_ID] as { getSettings?: () => DayPlannerSettings } | undefined;
+  }
+
+  private dayPlannerSettings(): DayPlannerSettings | undefined {
+    try {
+      return this.dayPlanner()?.getSettings?.();
+    } catch {
+      return undefined;
+    }
+  }
+
+  private checkDayPlanner(): void {
+    if (this.dayPlanner() === undefined) {
       new Notice(this.s.dayPlannerMissing, 10_000);
       return;
     }
-    if (dp.getSettings?.().showTaskNotification === false) new Notice(this.s.dayPlannerNotifyOff, 10_000);
+    if (this.dayPlannerSettings()?.showTaskNotification === false) new Notice(this.s.dayPlannerNotifyOff, 10_000);
   }
 }

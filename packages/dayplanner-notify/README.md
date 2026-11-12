@@ -14,10 +14,22 @@ When Day Planner announces a task start (its `Task started: …` notification), 
 - Repeats the beep and flashes the taskbar until the alert is closed (without stealing focus again)
 - Keeps the alert open until you close it with OK, × or Esc; a click outside it only shakes it
 
-Day Planner decides when a task starts; this plugin has no parsing or scheduling of its own.
+Day Planner decides when a task starts; this plugin has no scheduling of its own.
 The alert and sound come from inside Obsidian, separately from the OS notification, so Windows Do Not Disturb does not hide them.
 
 The interface follows Obsidian's language: Japanese when Obsidian is in Japanese, English otherwise.
+
+## Blocks that start together
+
+Day Planner announces only one of the blocks that start at the same time. This plugin reads today's daily note and shows the others in the same alert, each with its own postpone buttons. The sound and the window coming to the front happen once. Postponing a block takes it off the alert, and the alert closes with the last one.
+
+## Opening Obsidian late
+
+Day Planner only runs while Obsidian is open, and neither plugin keeps a record of alerts you have not dismissed.
+
+- A block that is still in progress when Obsidian starts is announced shortly after: Day Planner's first check treats every block in progress as just started (checked in the code of Day Planner 0.35.1). If that announcement comes within 2 minutes of start-up, this plugin shows every block in progress in one alert.
+- A block that started and ended while Obsidian was closed is not announced.
+- An alert left open when Obsidian closed does not come back, unless its block is still in progress.
 
 ## Postponing
 
@@ -52,7 +64,7 @@ Both go through the same path as Day Planner's own notification, so they exercis
 
 ## Limitations
 
-- When several blocks start at the same time, Day Planner announces only one, so only one alert appears.
+- The other blocks starting at the same time are looked up in today's daily note. Events from external calendars (ICS), which Day Planner also announces, are not added to the alert.
 - If Day Planner changes its notification text (`Task started: `), this plugin no longer detects it.
 
 ## Caution

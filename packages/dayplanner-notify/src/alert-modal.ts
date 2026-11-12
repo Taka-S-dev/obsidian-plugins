@@ -3,17 +3,21 @@ import type { Strings } from "./i18n";
 import type { TaskStart } from "./match";
 
 export interface AlertActions {
-  /** Minutes offered as "+N" buttons; empty hides the row. */
-  postponeOptions: number[];
+  /** Minutes offered as "+N" buttons for a task; empty hides its row. */
+  postponeOptions(start: TaskStart): number[];
   /** Resolves to an error message to show in the modal, or null on success. */
-  onPostpone(minutes: number): Promise<string | null>;
+  onPostpone(start: TaskStart, minutes: number): Promise<string | null>;
   onOpenNote(): void;
   onClosed(): void;
 }
 
+/** One alert for every task that started at once; each can be postponed on its own. */
 export class TaskStartModal extends Modal {
-  constructor(app: App, private start: TaskStart, private s: Strings, private actions: AlertActions) {
+  private remaining: number;
+
+  constructor(app: App, private starts: TaskStart[], private s: Strings, private actions: AlertActions) {
     super(app);
+    this.remaining = starts.length;
   }
 
   onOpen(): void {
@@ -22,33 +26,7 @@ export class TaskStartModal extends Modal {
     this.keepOpenOnOutsideClick();
     // The task is what matters; the status is a small label above it.
     contentEl.createDiv({ text: s.starting, cls: "dayplanner-notify-label" });
-    contentEl.createDiv({ text: this.start.task, cls: "dayplanner-notify-task" });
-    if (this.start.time !== "") contentEl.createDiv({ text: this.start.time, cls: "dayplanner-notify-time" });
-
-    if (this.actions.postponeOptions.length > 0) {
-      const row = contentEl.createDiv({ cls: "dayplanner-notify-postpone" });
-      row.createSpan({ text: s.postpone, cls: "dayplanner-notify-postpone-label" });
-      const error = contentEl.createDiv({ cls: "dayplanner-notify-error" });
-      const buttons: ButtonComponent[] = [];
-      for (const minutes of this.actions.postponeOptions) {
-        const button = new ButtonComponent(row)
-          .setButtonText(s.postponeButton(minutes))
-          .setTooltip(s.postponeTooltip(minutes))
-          .onClick(async () => {
-            buttons.forEach((b) => b.setDisabled(true));
-            error.setText("");
-            const message = await this.actions.onPostpone(minutes);
-            if (message === null) {
-              this.close();
-              return;
-            }
-            // Keep the modal open so the user can fall back to editing the note.
-            error.setText(message);
-            buttons.forEach((b) => b.setDisabled(false));
-          });
-        buttons.push(button);
-      }
-    }
+    for (const start of this.starts) this.renderTask(contentEl.createDiv({ cls: "dayplanner-notify-item" }), start);
 
     const footer = contentEl.createDiv({ cls: "modal-button-container" });
     new ButtonComponent(footer).setButtonText(s.openNote).onClick(() => {
@@ -81,5 +59,38 @@ export class TaskStartModal extends Modal {
     };
     // Capture on the container runs before the backdrop's own listener.
     for (const type of ["pointerdown", "mousedown", "click"]) this.containerEl.addEventListener(type, stop, true);
+  }
+
+  private renderTask(el: HTMLElement, start: TaskStart): void {
+    const { s } = this;
+    el.createDiv({ text: start.task, cls: "dayplanner-notify-task" });
+    if (start.time !== "") el.createDiv({ text: start.time, cls: "dayplanner-notify-time" });
+
+    const options = this.actions.postponeOptions(start);
+    if (options.length === 0) return;
+    const row = el.createDiv({ cls: "dayplanner-notify-postpone" });
+    row.createSpan({ text: s.postpone, cls: "dayplanner-notify-postpone-label" });
+    const error = el.createDiv({ cls: "dayplanner-notify-error" });
+    const buttons: ButtonComponent[] = [];
+    for (const minutes of options) {
+      const button = new ButtonComponent(row)
+        .setButtonText(s.postponeButton(minutes))
+        .setTooltip(s.postponeTooltip(minutes))
+        .onClick(async () => {
+          buttons.forEach((b) => b.setDisabled(true));
+          error.setText("");
+          const message = await this.actions.onPostpone(start, minutes);
+          if (message === null) {
+            // A postponed task leaves the alert; the alert closes with the last one.
+            el.remove();
+            if (--this.remaining === 0) this.close();
+            return;
+          }
+          // Keep the task in the alert so the user can fall back to editing the note.
+          error.setText(message);
+          buttons.forEach((b) => b.setDisabled(false));
+        });
+      buttons.push(button);
+    }
   }
 }

@@ -1,4 +1,4 @@
-// Shifts a Day Planner time block in note text. Pure: no Obsidian imports, so it is unit-testable.
+// Reads and shifts Day Planner time blocks in note text. Pure: no Obsidian imports, so it is unit-testable.
 
 export type RescheduleResult =
   | { ok: true; content: string; from: string; to: string; before: string; after: string }
@@ -112,4 +112,59 @@ export function restoreLine(content: string, after: string, before: string): Res
   const i = hits[0];
   lines[i] = before + (lines[i].endsWith("\r") ? "\r" : "");
   return { ok: true, content: lines.join("\n") };
+}
+
+export interface Block {
+  task: string;
+  /** Minutes since midnight. */
+  start: number;
+  end: number | null;
+  /** "09:00–10:00", as Day Planner writes it in its notification. */
+  time: string;
+}
+
+/** The open time blocks in a note, in note order. */
+export function listBlocks(content: string): Block[] {
+  const blocks: Block[] = [];
+  for (const raw of content.split("\n")) {
+    const m = BLOCK_LINE.exec(raw.endsWith("\r") ? raw.slice(0, -1) : raw);
+    if (!m) continue;
+    const start = toMinutes(m[2], m[3]);
+    const end = m[5] !== undefined ? toMinutes(m[5], m[6]) : null;
+    const task = m[8].trim();
+    if (start === null || task === "") continue;
+    const time = formatClock(start, true) + (end === null ? "" : `–${formatClock(end, true)}`);
+    blocks.push({ task, start, end, time });
+  }
+  return blocks;
+}
+
+export interface CompanionOptions {
+  /** Minutes since midnight. */
+  now: number;
+  /**
+   * Day Planner's first check after Obsidian starts treats every block in progress as just started,
+   * but still announces only one; with this set, the others in progress are returned too.
+   */
+  catchUp: boolean;
+  /** Length Day Planner gives a block that has no end time. */
+  defaultDuration: number;
+}
+
+/**
+ * Blocks that started together with the one Day Planner announced and that it left unannounced:
+ * it notifies only the first of the blocks starting at the same check.
+ */
+export function companionBlocks(
+  blocks: Block[],
+  announced: { task: string; start: number },
+  options: CompanionOptions,
+): Block[] {
+  const wanted = announced.task.trim();
+  // Only one line is the announced block. Day Planner may shorten its text (trailing tags), so a
+  // line containing the name counts when none matches exactly; "test" must not also take "test2".
+  const sameStart = blocks.filter((b) => b.start === announced.start);
+  const own = sameStart.find((b) => b.task === wanted) ?? sameStart.find((b) => b.task.includes(wanted));
+  const inProgress = (b: Block) => b.start <= options.now && options.now < (b.end ?? b.start + options.defaultDuration);
+  return blocks.filter((b) => b !== own && (b.start === announced.start || (options.catchUp && inProgress(b))));
 }
