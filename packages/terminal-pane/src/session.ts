@@ -8,6 +8,7 @@ import { WebLinksAddon } from "@xterm/addon-web-links";
 import { WebglAddon } from "@xterm/addon-webgl";
 import { lstatSync } from "node:fs";
 import { release } from "node:os";
+import { isOsc777Notify, readOsc9 } from "./attention.ts";
 import { findExecutable, launchCommand, splitCommandLine, type CommandLine } from "./command-line.ts";
 import type { Strings } from "./i18n.ts";
 import { PtyProcess } from "./pty-process.ts";
@@ -17,6 +18,8 @@ import { fontFor, themeFor } from "./theme.ts";
 /** Output not yet drawn by the terminal; past HIGH the program is paused until it drops below LOW. */
 const HIGH_WATER = 512 * 1024;
 const LOW_WATER = 64 * 1024;
+/** After Enter, output that then stops for this long counts as a finished reply. */
+const QUIET_MS = 3000;
 
 /** What a terminal needs from the plugin. */
 export interface SessionContext {
@@ -67,9 +70,20 @@ export class TerminalSession {
   private unacked = 0;
   private paused = false;
   private disposed = false;
+  /** Enter was pressed and the program has not gone quiet since. */
+  private awaitingReply = false;
+  private quietTimer: number | undefined;
+  private progressBusy = false;
   status: SessionStatus = "idle";
-  /** Called when the title or status changes, so the tab can be redrawn. */
+  /** Set when the program asked for attention; cleared by a key or click in the terminal. */
+  attention = false;
+  /** Called when the title, status or attention mark changes, so the tab can be redrawn. */
   onChange: () => void = () => {};
+  /**
+   * Called when the program may want the user: it rang the bell, sent a notification, cleared its
+   * taskbar progress, or printed a reply to Enter and then went quiet.
+   */
+  onAttention: () => void = () => {};
 
   constructor(parent: HTMLElement, private readonly ctx: SessionContext, readonly profileId: string) {
     this.el = parent.createDiv({ cls: "terminal-pane-host" });
@@ -91,6 +105,23 @@ export class TerminalSession {
     term.attachCustomKeyEventHandler((event) => this.handleKey(event));
     term.onData((data) => this.input(data));
     term.onResize(() => this.schedulePtyResize());
+    term.onBell(() => this.onAttention());
+    term.parser.registerOscHandler(9, (data) => {
+      const osc = readOsc9(data);
+      if (osc.kind === "notify") this.onAttention();
+      else {
+        if (this.progressBusy && !osc.busy) this.onAttention();
+        this.progressBusy = osc.busy;
+      }
+      return true;
+    });
+    term.parser.registerOscHandler(777, (data) => {
+      if (isOsc777Notify(data)) this.onAttention();
+      return true;
+    });
+    // Not on focus: Obsidian gives the terminal its focus back whenever its window comes to the
+    // front, which would clear the mark before it could be seen.
+    this.el.addEventListener("mousedown", () => this.setAttention(false));
     this.term = term;
   }
 
@@ -148,6 +179,17 @@ export class TerminalSession {
 
   focus(): void { this.term.focus(); }
 
+  /** Whether the terminal has the keyboard. */
+  hasFocus(): boolean {
+    return this.term.textarea !== undefined && document.activeElement === this.term.textarea;
+  }
+
+  setAttention(value: boolean): void {
+    if (this.attention === value) return;
+    this.attention = value;
+    if (!this.disposed) this.onChange();
+  }
+
   /** Types text into the program as a paste, so shells do not run it before Enter. */
   paste(text: string): void {
     if (this.status === "running") this.term.paste(text);
@@ -174,6 +216,7 @@ export class TerminalSession {
     this.disposed = true;
     if (this.frame) cancelAnimationFrame(this.frame);
     window.clearTimeout(this.resizeTimer);
+    window.clearTimeout(this.quietTimer);
     this.proc?.kill();
     this.detach();
     this.term.dispose();
@@ -243,6 +286,9 @@ export class TerminalSession {
     this.proc = null;
     this.unacked = 0;
     this.paused = false;
+    window.clearTimeout(this.quietTimer);
+    this.awaitingReply = false;
+    this.progressBusy = false;
     if (this.status !== "exited") {
       this.status = "exited";
       if (!this.disposed) this.onChange();
@@ -250,14 +296,17 @@ export class TerminalSession {
   }
 
   private input(data: string): void {
-    if (this.status === "running") this.proc?.write(data);
-    else if (this.status === "exited" && data === "\r") {
+    if (this.status === "running") {
+      this.proc?.write(data);
+      if (data.includes("\r")) this.awaitingReply = true;
+    } else if (this.status === "exited" && data === "\r") {
       this.term.reset();
       this.start();
     }
   }
 
   private output(data: string): void {
+    if (this.awaitingReply) this.waitForQuiet();
     this.unacked += data.length;
     if (!this.paused && this.unacked > HIGH_WATER) {
       this.paused = true;
@@ -273,12 +322,26 @@ export class TerminalSession {
   }
 
   /**
+   * A reply to Enter is taken as finished once its output stops: assistants such as Copilot CLI
+   * animate a spinner until they are done, and a shell command prints until it ends. Waiting for
+   * Enter first keeps redraws (focus changes, resizes) from counting as replies.
+   */
+  private waitForQuiet(): void {
+    window.clearTimeout(this.quietTimer);
+    this.quietTimer = window.setTimeout(() => {
+      this.awaitingReply = false;
+      if (!this.disposed) this.onAttention();
+    }, QUIET_MS);
+  }
+
+  /**
    * Copy and paste follow Windows Terminal: Ctrl+C copies when text is selected (otherwise it
    * reaches the program as an interrupt), Ctrl+Shift+C always copies, Ctrl+V and Ctrl+Shift+V paste.
    * Returning false keeps xterm from sending the key to the program.
    */
   private handleKey(event: KeyboardEvent): boolean {
     if (event.type !== "keydown") return true;
+    this.setAttention(false);
     if (this.ctx.passToObsidian(event)) return false;
     // xterm.js sends Shift+Enter as a plain Enter, so programs cannot tell them apart. Alt+Enter
     // (ESC, then Enter) is a line break that Claude Code accepts.

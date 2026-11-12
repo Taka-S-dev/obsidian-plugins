@@ -53,6 +53,18 @@ Copy and paste follow Windows Terminal:
 
 Shift+Enter is sent as Alt+Enter (ESC, then Enter). xterm.js, which draws the terminal, sends Shift+Enter as a plain Enter, so programs could not tell them apart; Alt+Enter is a line break Claude Code accepts. VS Code's terminal, also built on xterm.js, needs Claude Code's `/terminal-setup` for the same reason. In PowerShell, Shift+Enter then does nothing rather than running the line. Turn this off under **Shift+Enter inserts a line break** to send a plain Enter. Ctrl+J inserts a line break in Claude Code either way.
 
+### Notifications
+
+When a program finishes replying while you are not typing in its terminal, its tab gets a blinking orange dot and an orange title, and so does Obsidian's own tab for the pane, which stays in sight while another note is open. The mark stays until you switch to the terminal's tab, or click or type in it. If Obsidian is in the background, its taskbar button flashes too. No sound plays and nothing pops up.
+
+A reply counts as finished when:
+
+- output that followed Enter stops for 3 seconds. Assistants such as Copilot CLI animate a spinner until they are done, and a shell command prints until it ends, so this needs no setup in the program;
+- the program rings the terminal bell, or sends an OSC 9 or OSC 777 notification;
+- the program clears the taskbar progress (OSC 9;4) it set while working, as Copilot CLI does.
+
+Turn this off under **Mark tabs that want attention**.
+
 ## Profiles
 
 A profile's command line is a program followed by its arguments, as you would type it in Command Prompt.
@@ -79,6 +91,7 @@ Each profile gets its own "Open terminal" command, so a profile can have a hotke
 - **Open terminals in**: where a new pane opens when there is none (right sidebar or a new tab). An existing pane stays where you put it.
 - **Font size** and **Font**: font names separated by commas. Use a Nerd Font, such as JetBrainsMono Nerd Font, to show the icons many terminal programs draw. Empty uses Obsidian's monospace font.
 - **Shift+Enter inserts a line break**: on by default; see [Keys](#keys).
+- **Mark tabs that want attention**: on by default; see [Notifications](#notifications).
 - **Obsidian commands in the terminal**: commands whose hotkeys work while a terminal has the keyboard; see [Keys](#keys). Each shows its current hotkey.
 - **Use the bundled ConPTY**: off by default; see below.
 - **Node.js**: `node` uses the one on PATH, or enter the full path to `node.exe`.

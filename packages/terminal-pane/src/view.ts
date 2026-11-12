@@ -1,8 +1,19 @@
 // The terminal pane: a row of tabs, one TerminalSession per tab.
 import { ItemView, Menu, Scope, setIcon, setTooltip, type ViewStateResult, type WorkspaceLeaf } from "obsidian";
+import { tabHeaderEl } from "./obsidian-internals.ts";
 import { type SessionContext, TerminalSession } from "./session.ts";
 
 export const VIEW_TYPE = "terminal-pane";
+
+/** The Obsidian window, through Electron's remote module; undefined where that is unavailable. */
+function obsidianWindow(): { flashFrame(flag: boolean): void } | undefined {
+  try {
+    return (window.require?.("electron") as { remote?: { getCurrentWindow(): { flashFrame(flag: boolean): void } } })
+      ?.remote?.getCurrentWindow();
+  } catch {
+    return undefined;
+  }
+}
 
 /** What the view saves in the workspace layout, so its tabs come back after a restart. */
 interface SavedState {
@@ -77,12 +88,15 @@ export class TerminalView extends ItemView {
     const statusBar = document.body.querySelector<HTMLElement>(".status-bar");
     if (statusBar) this.observer.observe(statusBar);
     this.registerEvent(this.app.workspace.on("layout-change", () => this.reserveStatusBar()));
+    this.registerDomEvent(window, "focus", () => obsidianWindow()?.flashFrame(false));
     this.registerEvent(this.app.workspace.on("css-change", () => this.applyAppearance()));
     const onFonts = () => { for (const session of this.sessions) session.fontsChanged(); };
     document.fonts.addEventListener("loadingdone", onFonts);
     this.register(() => document.fonts.removeEventListener("loadingdone", onFonts));
     this.registerEvent(this.app.workspace.on("active-leaf-change", (leaf) => {
-      if (leaf === this.leaf) this.current?.focus();
+      if (leaf !== this.leaf) return;
+      this.current?.setAttention(false);
+      this.current?.focus();
     }));
     // setState usually follows onOpen with the saved tabs; open the default profile if it does not.
     window.setTimeout(() => {
@@ -93,6 +107,7 @@ export class TerminalView extends ItemView {
 
   async onClose(): Promise<void> {
     this.observer?.disconnect();
+    tabHeaderEl(this.leaf)?.removeClass("terminal-pane-attention");
     for (const session of this.sessions) session.dispose();
     this.sessions = [];
     this.current = null;
@@ -106,6 +121,7 @@ export class TerminalView extends ItemView {
     this.populated = true;
     const session = new TerminalSession(this.body, this.ctx, profileId);
     session.onChange = () => this.renderTabs();
+    session.onAttention = () => this.attention(session);
     session.setVisible(false);
     this.sessions.push(session);
     if (show) this.activate(session);
@@ -117,6 +133,7 @@ export class TerminalView extends ItemView {
   activate(session: TerminalSession): void {
     for (const other of this.sessions) other.setVisible(other === session);
     this.current = session;
+    session.setAttention(false);
     this.renderTabs();
     session.focus();
     this.app.workspace.requestSaveLayout();
@@ -160,6 +177,23 @@ export class TerminalView extends ItemView {
   }
 
   /**
+   * A program may want the user. Nothing happens while its terminal has the keyboard; otherwise
+   * its tab gets a blinking dot, and the taskbar button flashes when Obsidian is in the background.
+   * Silent on purpose: no sound and no pop-up.
+   */
+  private attention(session: TerminalSession): void {
+    if (!this.ctx.settings.notifications) return;
+    const inBackground = !document.hasFocus();
+    if (!inBackground && session.hasFocus()) return;
+    session.setAttention(true);
+    if (inBackground) obsidianWindow()?.flashFrame(true);
+  }
+
+  private isShown(): boolean {
+    return this.contentEl.clientWidth > 0 && this.contentEl.clientHeight > 0;
+  }
+
+  /**
    * Obsidian's status bar floats over the bottom right of the window, on top of whatever pane is
    * there. Keeps the terminal's last rows out from under it.
    */
@@ -182,6 +216,9 @@ export class TerminalView extends ItemView {
   // Tab row
 
   private renderTabs(): void {
+    // Obsidian's own tab for this pane carries the mark too: the pane's tab row is out of sight
+    // while another note's tab is open or the sidebar shows another view.
+    tabHeaderEl(this.leaf)?.toggleClass("terminal-pane-attention", this.sessions.some((s) => s.attention));
     const tabsEl = this.tabsEl;
     if (!tabsEl) return;
     const { s } = this.ctx;
@@ -189,9 +226,15 @@ export class TerminalView extends ItemView {
     for (const session of this.sessions) {
       const active = session === this.current;
       const tab = tabsEl.createDiv({
-        cls: ["terminal-pane-tab", ...(active ? ["is-active"] : []), ...(session.status === "exited" ? ["is-exited"] : [])],
+        cls: [
+          "terminal-pane-tab",
+          ...(active ? ["is-active"] : []),
+          ...(session.status === "exited" ? ["is-exited"] : []),
+          ...(session.attention ? ["has-attention"] : []),
+        ],
         attr: { role: "tab", "aria-selected": String(active), tabindex: active ? "0" : "-1" },
       });
+      if (session.attention) tab.createSpan({ cls: "terminal-pane-tab-mark", attr: { "aria-label": s.attention } });
       tab.createSpan({ cls: "terminal-pane-tab-title", text: session.title });
       const close = tab.createDiv({ cls: "clickable-icon terminal-pane-tab-close", attr: { "aria-label": s.tabs.close } });
       setIcon(close, "x");

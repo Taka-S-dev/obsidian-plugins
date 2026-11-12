@@ -109,6 +109,9 @@ export class TerminalSettingTab extends PluginSettingTab {
     new Setting(containerEl).setName(t.shiftEnterNewline).setDesc(t.shiftEnterNewlineDesc).addToggle((toggle) => toggle
       .setValue(settings.shiftEnterNewline)
       .onChange(async (value) => { settings.shiftEnterNewline = value; await plugin.saveSettings(); }));
+    new Setting(containerEl).setName(t.notifications).setDesc(t.notificationsDesc).addToggle((toggle) => toggle
+      .setValue(settings.notifications)
+      .onChange(async (value) => { settings.notifications = value; await plugin.saveSettings(); }));
 
     this.displayObsidianCommands(containerEl);
 

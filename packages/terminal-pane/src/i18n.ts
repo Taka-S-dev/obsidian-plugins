@@ -17,6 +17,7 @@ const en = {
     restart: "Restart",
     close: "Close",
   },
+  attention: "Wants your attention",
   untitled: "Terminal",
   commandPrompt: "Command Prompt",
   noTerminal: "No terminal is open.",
@@ -59,6 +60,9 @@ const en = {
     shiftEnterNewline: "Shift+Enter inserts a line break",
     shiftEnterNewlineDesc:
       "Sends Shift+Enter as Alt+Enter, which Claude Code reads as a new line instead of submitting. Turn off to send it as a plain Enter. Ctrl+J also inserts a line break in Claude Code either way.",
+    notifications: "Mark tabs that want attention",
+    notificationsDesc:
+      "When a program finishes replying in a tab you are not typing in, the tab gets a blinking dot, and the taskbar button flashes if Obsidian is in the background. A reply counts as finished when output that followed Enter stops for 3 seconds, or when the program rings the bell, sends a notification or clears its taskbar progress. No sound plays.",
     advanced: "Advanced",
     bundledConpty: "Use the bundled ConPTY",
     bundledConptyDesc:
@@ -87,6 +91,7 @@ const ja: Strings = {
     restart: "再起動",
     close: "閉じる",
   },
+  attention: "応答があります",
   untitled: "ターミナル",
   commandPrompt: "コマンド プロンプト",
   noTerminal: "開いているターミナルがありません。",
@@ -129,6 +134,9 @@ const ja: Strings = {
     shiftEnterNewline: "Shift+Enter で改行する",
     shiftEnterNewlineDesc:
       "Shift+Enter を Alt+Enter として送ります。Claude Code では送信せずに改行になります。オフにすると普通の Enter として送ります。Claude Code では、この設定にかかわらず Ctrl+J でも改行できます。",
+    notifications: "応答があったタブに印を付ける",
+    notificationsDesc:
+      "入力中でないタブでプログラムの応答が終わると、そのタブに点滅する点が付きます。Obsidian が裏にあるときはタスクバーのボタンも点滅します。Enter のあとに続いた出力が 3 秒止まったとき、またはプログラムがベルや通知を送ったり、タスクバーの進捗表示を消したりしたときに、応答が終わったとみなします。音は鳴りません。",
     advanced: "詳細",
     bundledConpty: "同梱の ConPTY を使う",
     bundledConptyDesc:

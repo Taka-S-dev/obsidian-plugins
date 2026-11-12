@@ -59,6 +59,49 @@
   opacity: 0.6;
 }
 
+/*
+ * A tab whose program finished replying while nobody was looking. Orange rather than the accent
+ * color, which Obsidian already uses for the active tab and selections.
+ */
+.terminal-pane-tab-mark {
+  flex: 0 0 auto;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: var(--color-orange);
+  animation: terminal-pane-blink 1.6s ease-in-out infinite;
+}
+
+.terminal-pane-tab.has-attention .terminal-pane-tab-title,
+.workspace-tab-header.terminal-pane-attention .workspace-tab-header-inner-title {
+  color: var(--color-orange);
+  font-weight: var(--font-semibold);
+}
+
+/* The same mark on Obsidian's own tab for the pane, in the tab bar or the sidebar's tab strip. */
+.workspace-tab-header.terminal-pane-attention .workspace-tab-header-inner-icon {
+  position: relative;
+}
+
+.workspace-tab-header.terminal-pane-attention .workspace-tab-header-inner-icon::after {
+  content: "";
+  position: absolute;
+  top: -3px;
+  right: -4px;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background-color: var(--color-orange);
+  /* A ring in the tab's color keeps the dot apart from the icon under it. */
+  box-shadow: 0 0 0 2px var(--tab-background-active, var(--background-primary));
+  animation: terminal-pane-blink 1.6s ease-in-out infinite;
+}
+
+/* A slow fade, not movement, so it is kept when the system asks for reduced motion. */
+@keyframes terminal-pane-blink {
+  50% { opacity: 0.25; }
+}
+
 .terminal-pane-tab-title {
   overflow: hidden;
   text-overflow: ellipsis;

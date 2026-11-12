@@ -1,7 +1,7 @@
 // Obsidian's command and hotkey stores. They are not part of the public API, so they live here in
 // one place and every use is guarded: if a future Obsidian changes them, the features that rely on
 // them stop working quietly instead of breaking the plugin.
-import type { App } from "obsidian";
+import type { App, WorkspaceLeaf } from "obsidian";
 import type { Hotkey } from "./hotkeys.ts";
 
 interface CommandInfo {
@@ -42,4 +42,10 @@ export function hotkeysFor(app: App, id: string): Hotkey[] {
 /** The command's hotkeys as Obsidian writes them ("Ctrl + O"), or "" if there are none. */
 export function hotkeyText(app: App, id: string): string {
   return internals(app).hotkeyManager?.printHotkeyForCommand?.(id) ?? "";
+}
+
+/** The leaf's tab in Obsidian's tab bar (or sidebar tab strip), or undefined if not available. */
+export function tabHeaderEl(leaf: WorkspaceLeaf): HTMLElement | undefined {
+  const el = (leaf as unknown as { tabHeaderEl?: unknown }).tabHeaderEl;
+  return el instanceof HTMLElement ? el : undefined;
 }

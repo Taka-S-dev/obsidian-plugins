@@ -32,6 +32,8 @@ export interface Settings {
   obsidianCommands: string[];
   /** Send Shift+Enter as Alt+Enter (ESC, Enter), which Claude Code reads as a line break. */
   shiftEnterNewline: boolean;
+  /** Mark tabs whose program finished replying, and flash the taskbar button when Obsidian is in the background. */
+  notifications: boolean;
 }
 
 export const FONT_SIZE = { min: 8, max: 32 };
@@ -52,6 +54,7 @@ export function defaultSettings(shell: string, cmdName: string): Settings {
     bundledConpty: false,
     obsidianCommands: [],
     shiftEnterNewline: true,
+    notifications: true,
   };
 }
 
@@ -83,6 +86,7 @@ export function normalizeSettings(raw: unknown, defaults: Settings): Settings {
       ? [...new Set(raw.obsidianCommands.filter((id): id is string => typeof id === "string" && id !== ""))]
       : defaults.obsidianCommands,
     shiftEnterNewline: typeof raw.shiftEnterNewline === "boolean" ? raw.shiftEnterNewline : defaults.shiftEnterNewline,
+    notifications: typeof raw.notifications === "boolean" ? raw.notifications : defaults.notifications,
   };
 }
 

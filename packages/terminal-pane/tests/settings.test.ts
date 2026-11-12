@@ -65,6 +65,9 @@ test("Shift+Enter sends a line break unless turned off", () => {
   assert.equal(defaults.shiftEnterNewline, true);
   assert.equal(normalizeSettings({ shiftEnterNewline: false }, defaults).shiftEnterNewline, false);
   assert.equal(normalizeSettings({ shiftEnterNewline: "off" }, defaults).shiftEnterNewline, true);
+  assert.equal(defaults.notifications, true);
+  assert.equal(normalizeSettings({ notifications: false }, defaults).notifications, false);
+  assert.equal(normalizeSettings({ notifications: 0 }, defaults).notifications, true);
 });
 
 test("new profile ids fill the first free number", () => {
