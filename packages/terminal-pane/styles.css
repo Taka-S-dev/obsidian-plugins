@@ -96,13 +96,16 @@
 /*
  * Positioned against the body, so the terminal's own size can never change the space it is
  * fitted to. Sized by its content instead, fitting would grow and shrink it by a row every frame.
+ * The bottom leaves room for the status bar where it overlaps the pane (set in view.ts).
  */
 .terminal-pane-host {
   position: absolute;
-  inset: 0;
+  inset: 0 0 var(--terminal-pane-reserve, 0) 0;
   overflow: hidden;
-  box-sizing: border-box;
-  /* The fit addon subtracts this padding when sizing the terminal. */
+}
+
+/* The padding goes on the terminal element: the fit addon subtracts it there, not on the host. */
+.terminal-pane-host .xterm {
   padding: 4px 0 4px 8px;
 }
 

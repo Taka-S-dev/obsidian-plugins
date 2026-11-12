@@ -69,8 +69,14 @@ export class TerminalView extends ItemView {
     this.button(actions, "chevron-down", this.ctx.s.tabs.chooseProfile, (event) => this.profileMenu(event));
     this.body = this.contentEl.createDiv({ cls: "terminal-pane-body" });
 
-    this.observer = new ResizeObserver(() => this.current?.scheduleFit());
+    this.observer = new ResizeObserver(() => {
+      this.reserveStatusBar();
+      this.current?.scheduleFit();
+    });
     this.observer.observe(this.body);
+    const statusBar = document.body.querySelector<HTMLElement>(".status-bar");
+    if (statusBar) this.observer.observe(statusBar);
+    this.registerEvent(this.app.workspace.on("layout-change", () => this.reserveStatusBar()));
     this.registerEvent(this.app.workspace.on("css-change", () => this.applyAppearance()));
     const onFonts = () => { for (const session of this.sessions) session.fontsChanged(); };
     document.fonts.addEventListener("loadingdone", onFonts);
@@ -151,6 +157,26 @@ export class TerminalView extends ItemView {
   applyAppearance(): void {
     for (const session of this.sessions) session.applyAppearance();
     this.renderTabs();
+  }
+
+  /**
+   * Obsidian's status bar floats over the bottom right of the window, on top of whatever pane is
+   * there. Keeps the terminal's last rows out from under it.
+   */
+  private reserveStatusBar(): void {
+    const body = this.body;
+    if (!body) return;
+    const bar = document.body.querySelector<HTMLElement>(".status-bar");
+    let overlap = 0;
+    // Not isShown(): a fixed element has no offsetParent, so that reports it as hidden.
+    const rect = bar?.getBoundingClientRect();
+    if (rect && rect.width > 0 && rect.height > 0) {
+      const pane = body.getBoundingClientRect();
+      if (rect.left < pane.right && rect.right > pane.left && rect.top < pane.bottom && rect.bottom > pane.top) {
+        overlap = Math.min(Math.ceil(pane.bottom - rect.top), pane.height);
+      }
+    }
+    body.setCssProps({ "--terminal-pane-reserve": `${overlap}px` });
   }
 
   // Tab row
