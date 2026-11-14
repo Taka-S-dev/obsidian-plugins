@@ -13,6 +13,9 @@ import {
 
 const TOKEN_HEADER = "x-claude-code-ide-authorization";
 
+/** When the selection goes to a newly connected Claude Code session, in ms after it says it is connected. */
+const RESEND_SELECTION_MS = [0, 1000, 3000];
+
 /** Where proposed edits are shown. */
 export interface DiffViewer {
   /**
@@ -165,8 +168,15 @@ export class IdeBridge implements AssistantBridge {
       }
       const response = reply(message, this.version);
       if (response) this.send(socket, response);
-      // Claude Code says it is ready once it has set up the connection.
-      if (message.method === "ide_connected" && this.selection) this.send(socket, this.selection);
+      // Claude Code says it is connected before its prompt listens for the selection, which drops
+      // one sent at once; it is sent again shortly after, so the open note shows without a change.
+      if (message.method === "ide_connected") {
+        for (const delay of RESEND_SELECTION_MS) {
+          setTimeout(() => {
+            if (this.selection && this.clients.has(socket)) this.send(socket, this.selection);
+          }, delay);
+        }
+      }
     });
   }
 
