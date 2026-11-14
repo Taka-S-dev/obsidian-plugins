@@ -165,3 +165,26 @@
   min-width: 14em;
   font-family: var(--font-monospace);
 }
+
+/* Which note a hovered link opens, and how. Placed in session.ts next to the pointer. */
+.terminal-pane-link-hint {
+  position: fixed;
+  z-index: var(--layer-tooltip);
+  max-width: 40em;
+  padding: var(--size-2-2) var(--size-4-2);
+  background-color: var(--background-primary);
+  border: var(--border-width) solid var(--background-modifier-border);
+  border-radius: var(--radius-s);
+  box-shadow: var(--shadow-s);
+  font-size: var(--font-ui-smaller);
+  pointer-events: none;
+}
+
+.terminal-pane-link-hint-path {
+  color: var(--text-normal);
+  overflow-wrap: anywhere;
+}
+
+.terminal-pane-link-hint-keys {
+  color: var(--text-muted);
+}

@@ -1,4 +1,4 @@
-import { FileSystemAdapter, getLanguage, Notice, Platform, Plugin, type WorkspaceLeaf } from "obsidian";
+import { FileSystemAdapter, getLanguage, normalizePath, Notice, Platform, Plugin, TFile, type WorkspaceLeaf } from "obsidian";
 import { lstatSync } from "node:fs";
 import { join } from "node:path";
 import xtermCss from "@xterm/xterm/css/xterm.css";
@@ -8,10 +8,11 @@ import { stringsFor, type Strings } from "./i18n.ts";
 import { hotkeysFor } from "./obsidian-internals.ts";
 import { confirmPaste } from "./paste-confirm.ts";
 import type { PtyProcess } from "./pty-process.ts";
-import type { SessionContext } from "./session.ts";
+import type { SessionContext, VaultLink } from "./session.ts";
 import { defaultSettings, normalizeSettings, type Settings } from "./settings.ts";
 import { TerminalSettingTab } from "./settings-tab.ts";
 import { TerminalView, VIEW_TYPE } from "./view.ts";
+import { type LinkCandidate, toVaultPath } from "./vault-links.ts";
 
 /** This plugin's commands, whose hotkeys always reach Obsidian while a terminal has the keyboard. */
 const COMMANDS = ["toggle", "new-terminal", "next-terminal", "previous-terminal", "close-terminal", "insert-note-path"];
@@ -160,6 +161,36 @@ export default class TerminalPanePlugin extends Plugin implements SessionContext
     const text = quotePath(file.path);
     if (text === null) return void new Notice(this.s.unsafePath(file.path));
     session.paste(text);
+  }
+
+  vaultLink(link: LinkCandidate): VaultLink | null {
+    const file = this.linkedFile(link);
+    if (!file) return null;
+    return { path: file.path, open: (newTab) => void this.openInWorkspace(file, newTab) };
+  }
+
+  /**
+   * A path names a file by its place in the vault. Failing that, a relative one is looked up the
+   * way Obsidian resolves a link, so a bare file name such as 00_Index.md, or a path relative to a
+   * folder the program works in, still finds its note when the vault has one by that name.
+   */
+  private linkedFile(link: LinkCandidate): TFile | null {
+    const { metadataCache, vault } = this.app;
+    if (link.kind === "wikilink") return metadataCache.getFirstLinkpathDest(link.target, "");
+    const path = toVaultPath(link.target, this.vaultPath());
+    if (path === null) return null;
+    const exact = vault.getAbstractFileByPath(normalizePath(path));
+    if (exact instanceof TFile) return exact;
+    if (/^[a-z]:[\\/]|^[\\/]/i.test(link.target)) return null;
+    return metadataCache.getFirstLinkpathDest(normalizePath(path), "");
+  }
+
+  /** Opens a file next to the terminal, never in the terminal's own tab. */
+  private async openInWorkspace(file: TFile, newTab: boolean): Promise<void> {
+    const { workspace } = this.app;
+    let leaf = newTab ? null : workspace.getMostRecentLeaf(workspace.rootSplit);
+    if (!leaf || leaf.view instanceof TerminalView || leaf.getViewState().pinned) leaf = workspace.getLeaf("tab");
+    await leaf.openFile(file, { active: true });
   }
 
   confirmPaste(lines: number): Promise<boolean> {

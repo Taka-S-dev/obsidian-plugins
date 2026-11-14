@@ -55,6 +55,11 @@ Copy and paste follow Windows Terminal:
 
 Shift+Enter is sent as Alt+Enter (ESC, then Enter). xterm.js, which draws the terminal, sends Shift+Enter as a plain Enter, so programs could not tell them apart; Alt+Enter is a line break Claude Code accepts. VS Code's terminal, also built on xterm.js, needs Claude Code's `/terminal-setup` for the same reason. In PowerShell, Shift+Enter then does nothing rather than running the line. Turn this off under **Shift+Enter inserts a line break** to send a plain Enter. Ctrl+J inserts a line break in Claude Code either way.
 
+### Notes and the terminal
+
+- A path or `[[wikilink]]` in the output that names a file in the vault becomes a link: click it to open the note, Ctrl+click to open it in a new tab. Paths may be relative to the vault or absolute, with either slash. A relative path with no file at that place is looked up the way Obsidian resolves a `[[link]]`, so a bare file name such as `Index.md` works too. A path with spaces counts when it is in quotes. The note never opens in the terminal's own tab.
+- Links keep the colors the program gave them. Hovering underlines one, and after a moment shows the note it opens and how.
+
 ### Notifications
 
 When a program finishes replying while you are not typing in its terminal, its tab gets a blinking orange dot and an orange title, and so does Obsidian's own tab for the pane, which stays in sight while another note is open. The mark stays until you switch to the terminal's tab, or click or type in it. If Obsidian is in the background, its taskbar button flashes too. No sound plays and nothing pops up.

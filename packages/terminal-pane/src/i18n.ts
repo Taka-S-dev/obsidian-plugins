@@ -18,6 +18,7 @@ const en = {
     close: "Close",
   },
   attention: "Wants your attention",
+  linkHint: "Click to open · Ctrl+click to open in a new tab",
   pasteConfirm: {
     title: (lines: number) => `Paste text that runs ${lines === 1 ? "a line" : `${lines} lines`}?`,
     desc: "This program does not take a paste as a whole, so each line runs as soon as it is pasted, as if Enter were pressed.",
@@ -98,6 +99,7 @@ const ja: Strings = {
     close: "閉じる",
   },
   attention: "応答があります",
+  linkHint: "クリックで開く · Ctrl+クリックで新しいタブに開く",
   pasteConfirm: {
     title: (lines) => `${lines} 行が実行される貼り付けです。貼り付けますか？`,
     desc: "このプログラムは貼り付けをまとめて受け取らないため、各行は貼り付けた時点で Enter を押したように実行されます。",

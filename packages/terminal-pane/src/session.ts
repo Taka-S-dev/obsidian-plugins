@@ -1,7 +1,7 @@
 // One terminal: an xterm.js screen connected to one program through a pty host process.
 // A TerminalView shows several of these as tabs.
 import { Notice } from "obsidian";
-import { Terminal } from "@xterm/xterm";
+import { type ILink, Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import { Unicode11Addon } from "@xterm/addon-unicode11";
 import { WebLinksAddon } from "@xterm/addon-web-links";
@@ -13,6 +13,7 @@ import { findExecutable, launchCommand, splitCommandLine, type CommandLine } fro
 import type { Strings } from "./i18n.ts";
 import { cleanPaste, linesRun } from "./paste.ts";
 import { PtyProcess } from "./pty-process.ts";
+import { findLinkCandidates, type LinkCandidate } from "./vault-links.ts";
 import type { Profile, Settings } from "./settings.ts";
 import { fontFor, themeFor } from "./theme.ts";
 
@@ -32,11 +33,23 @@ export interface SessionContext {
   passToObsidian(event: KeyboardEvent): boolean;
   /** Registers a running process so it is stopped when the plugin unloads; returns the undo. */
   track(process: PtyProcess): () => void;
+  /** The file a link points at, or null if no such file is in the vault. */
+  vaultLink(link: LinkCandidate): VaultLink | null;
   /** Asks whether to paste text of this many lines into a program that would run each line. */
   confirmPaste(lines: number): Promise<boolean>;
 }
 
+export interface VaultLink {
+  /** The file's path in the vault, shown when the link is hovered. */
+  path: string;
+  /** Opens the file next to the terminal, or in a new tab. */
+  open(newTab: boolean): void;
+}
+
 export type SessionStatus = "idle" | "running" | "exited";
+
+/** How long the pointer rests on a link before its hint shows, as in VS Code. */
+const HINT_DELAY_MS = 500;
 
 /** True for files and for the app execution aliases in WindowsApps (such as pwsh.exe). */
 function isFile(path: string): boolean {
@@ -77,6 +90,8 @@ export class TerminalSession {
   private awaitingReply = false;
   private quietTimer: number | undefined;
   private progressBusy = false;
+  private hintTimer: number | undefined;
+  private hintEl: HTMLElement | null = null;
   status: SessionStatus = "idle";
   /** Set when the program asked for attention; cleared by a key or click in the terminal. */
   attention = false;
@@ -103,6 +118,7 @@ export class TerminalSession {
     term.loadAddon(new Unicode11Addon());
     term.unicode.activeVersion = "11";
     term.loadAddon(new WebLinksAddon((_event, uri) => window.open(uri)));
+    term.registerLinkProvider({ provideLinks: (y, callback) => callback(this.vaultLinks(y)) });
     term.open(this.el);
     this.useWebgl(term);
     term.attachCustomKeyEventHandler((event) => this.handleKey(event));
@@ -236,6 +252,7 @@ export class TerminalSession {
     if (this.frame) cancelAnimationFrame(this.frame);
     window.clearTimeout(this.resizeTimer);
     window.clearTimeout(this.quietTimer);
+    this.hideHint();
     this.proc?.kill();
     this.detach();
     this.term.dispose();
@@ -361,6 +378,7 @@ export class TerminalSession {
   private handleKey(event: KeyboardEvent): boolean {
     if (event.type !== "keydown") return true;
     this.setAttention(false);
+    this.hideHint();
     if (this.ctx.passToObsidian(event)) return false;
     // xterm.js sends Shift+Enter as a plain Enter, so programs cannot tell them apart. Alt+Enter
     // (ESC, then Enter) is a line break that Claude Code accepts.
@@ -384,6 +402,78 @@ export class TerminalSession {
       return false;
     }
     return true;
+  }
+
+  /**
+   * Paths and wikilinks in the output that name a file in the vault, such as the notes an assistant
+   * reports having edited. Clicking one opens it in Obsidian; Ctrl+click opens it in a new tab.
+   */
+  private vaultLinks(y: number): ILink[] | undefined {
+    const line = this.term.buffer.active.getLine(y - 1);
+    if (!line) return undefined;
+    // Wide characters (CJK) take two cells, so text positions are mapped back to columns.
+    let text = "";
+    const columns: number[] = [];
+    const widths: number[] = [];
+    for (let x = 0; x < line.length; x++) {
+      const cell = line.getCell(x);
+      const width = cell?.getWidth() ?? 1;
+      if (width === 0) continue;
+      const chars = cell?.getChars() || " ";
+      for (let i = 0; i < chars.length; i++) {
+        columns.push(x);
+        widths.push(width);
+      }
+      text += chars;
+    }
+    const links: ILink[] = [];
+    for (const candidate of findLinkCandidates(text)) {
+      const link = this.ctx.vaultLink(candidate);
+      if (!link) continue;
+      const last = candidate.end - 1;
+      links.push({
+        range: {
+          start: { x: columns[candidate.start] + 1, y },
+          end: { x: columns[last] + widths[last], y },
+        },
+        text: text.slice(candidate.start, candidate.end),
+        decorations: { underline: true, pointerCursor: true },
+        activate: (event) => {
+          this.hideHint();
+          link.open(event.ctrlKey || event.metaKey);
+        },
+        hover: (event) => this.showHint(event, link.path),
+        leave: () => this.hideHint(),
+      });
+    }
+    return links.length > 0 ? links : undefined;
+  }
+
+  /**
+   * Says which note a link opens and how, after the pointer rests on it: the program chose the
+   * text's color, so the link itself only gets an underline while hovered.
+   */
+  private showHint(event: MouseEvent, path: string): void {
+    this.hideHint();
+    const { x, y } = event;
+    this.hintTimer = window.setTimeout(() => {
+      const hint = document.body.createDiv({ cls: "terminal-pane-link-hint" });
+      hint.createDiv({ cls: "terminal-pane-link-hint-path", text: path });
+      hint.createDiv({ cls: "terminal-pane-link-hint-keys", text: this.ctx.s.linkHint });
+      // Below the pointer, or above it near the bottom of the window.
+      const below = y + 20 + hint.offsetHeight < window.innerHeight;
+      hint.setCssProps({
+        left: `${Math.max(4, Math.min(x, window.innerWidth - hint.offsetWidth - 4))}px`,
+        top: `${below ? y + 20 : y - 8 - hint.offsetHeight}px`,
+      });
+      this.hintEl = hint;
+    }, HINT_DELAY_MS);
+  }
+
+  private hideHint(): void {
+    window.clearTimeout(this.hintTimer);
+    this.hintEl?.remove();
+    this.hintEl = null;
   }
 
   /**
