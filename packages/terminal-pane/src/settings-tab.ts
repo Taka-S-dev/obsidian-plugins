@@ -112,12 +112,12 @@ export class TerminalSettingTab extends PluginSettingTab {
     new Setting(containerEl).setName(t.notifications).setDesc(t.notificationsDesc).addToggle((toggle) => toggle
       .setValue(settings.notifications)
       .onChange(async (value) => { settings.notifications = value; await plugin.saveSettings(); }));
-    new Setting(containerEl).setName(t.shareWithClaude).setDesc(t.shareWithClaudeDesc).addToggle((toggle) => toggle
-      .setValue(settings.shareWithClaude)
+    new Setting(containerEl).setName(t.connectAssistants).setDesc(t.connectAssistantsDesc).addToggle((toggle) => toggle
+      .setValue(settings.connectAssistants)
       .onChange(async (value) => {
-        settings.shareWithClaude = value;
+        settings.connectAssistants = value;
         await plugin.saveSettings();
-        await plugin.applyClaudeSharing();
+        await plugin.applyAssistantConnections();
       }));
 
     this.displayObsidianCommands(containerEl);

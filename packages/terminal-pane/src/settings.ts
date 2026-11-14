@@ -34,8 +34,11 @@ export interface Settings {
   shiftEnterNewline: boolean;
   /** Mark tabs whose program finished replying, and flash the taskbar button when Obsidian is in the background. */
   notifications: boolean;
-  /** Tell Claude Code started in the terminal which note is open and what is selected in it. */
-  shareWithClaude: boolean;
+  /**
+   * Let Claude Code and Copilot CLI connect to Obsidian as they do to VS Code: they see the open
+   * note and selection, and show the edits they propose as diffs.
+   */
+  connectAssistants: boolean;
 }
 
 export const FONT_SIZE = { min: 8, max: 32 };
@@ -57,7 +60,7 @@ export function defaultSettings(shell: string, cmdName: string): Settings {
     obsidianCommands: [],
     shiftEnterNewline: true,
     notifications: true,
-    shareWithClaude: true,
+    connectAssistants: true,
   };
 }
 
@@ -90,7 +93,7 @@ export function normalizeSettings(raw: unknown, defaults: Settings): Settings {
       : defaults.obsidianCommands,
     shiftEnterNewline: typeof raw.shiftEnterNewline === "boolean" ? raw.shiftEnterNewline : defaults.shiftEnterNewline,
     notifications: typeof raw.notifications === "boolean" ? raw.notifications : defaults.notifications,
-    shareWithClaude: typeof raw.shareWithClaude === "boolean" ? raw.shareWithClaude : defaults.shareWithClaude,
+    connectAssistants: typeof raw.connectAssistants === "boolean" ? raw.connectAssistants : defaults.connectAssistants,
   };
 }
 

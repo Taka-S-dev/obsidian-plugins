@@ -12,7 +12,8 @@ import type { SessionContext, VaultLink } from "./session.ts";
 import { defaultSettings, normalizeSettings, type Settings } from "./settings.ts";
 import { TerminalSettingTab } from "./settings-tab.ts";
 import { TerminalView, VIEW_TYPE } from "./view.ts";
-import { IdeBridge } from "./ide-bridge.ts";
+import { type AssistantBridge, type DiffViewer, IdeBridge } from "./ide-bridge.ts";
+import { CopilotBridge } from "./copilot-bridge.ts";
 import type { DiffRequest } from "./ide-protocol.ts";
 import { DIFF_VIEW_TYPE, DiffView, type DiffState } from "./diff-view.ts";
 import { type LinkCandidate, toVaultPath } from "./vault-links.ts";
@@ -29,15 +30,16 @@ export default class TerminalPanePlugin extends Plugin implements SessionContext
   private readonly processes = new Set<PtyProcess>();
   private profileCommands: string[] = [];
   private lastView: TerminalView | null = null;
-  private bridge: IdeBridge | null = null;
+  /** Connections for Claude Code and Copilot CLI, while the setting is on. */
+  private bridges: AssistantBridge[] = [];
   private selectionTimer: number | undefined;
 
   async onload(): Promise<void> {
     this.s = stringsFor(getLanguage());
     await this.loadSettings();
 
-    // Before any terminal starts, so programs get the bridge's port in their environment.
-    await this.applyClaudeSharing();
+    // Before any terminal starts, so programs get the connection's port in their environment.
+    await this.applyAssistantConnections();
     this.trackSelection();
 
     const style = document.head.createEl("style", { text: xtermCss, attr: { id: "terminal-pane-xterm-css" } });
@@ -73,38 +75,46 @@ export default class TerminalPanePlugin extends Plugin implements SessionContext
     for (const proc of this.processes) proc.kill();
     this.processes.clear();
     window.clearTimeout(this.selectionTimer);
-    this.bridge?.stop();
-    this.bridge = null;
-  }
-
-  /** Starts or stops the connection Claude Code uses to see the open note, following the setting. */
-  async applyClaudeSharing(): Promise<void> {
-    if (!this.settings.shareWithClaude) {
-      this.bridge?.stop();
-      this.bridge = null;
-      return;
-    }
-    if (this.bridge) return;
-    const bridge = new IdeBridge(this.vaultPath(), this.manifest.version, {
-      show: (request) => void this.showDiff(request),
-      close: (tabName) => this.diffLeaf(tabName)?.detach(),
-    });
-    try {
-      await bridge.start();
-    } catch (error) {
-      bridge.stop();
-      console.warn("Terminal Pane: could not start the Claude Code connection", error);
-      return;
-    }
-    this.bridge = bridge;
-    this.shareSelection();
+    this.stopBridges();
   }
 
   /**
-   * Shows an edit Claude Code proposes next to the terminal, and gives the keyboard back to the
+   * Starts or stops the connections Claude Code and Copilot CLI use to see the open note and show
+   * their edits, following the setting. One that fails to start is left out; the other still runs.
+   */
+  async applyAssistantConnections(): Promise<void> {
+    if (!this.settings.connectAssistants) return this.stopBridges();
+    if (this.bridges.length > 0) return;
+    const viewer: DiffViewer = {
+      show: (request, assistant) => void this.showDiff(request, assistant),
+      close: (tabName) => this.diffLeaf(tabName)?.detach(),
+    };
+    const candidates: [string, AssistantBridge][] = [
+      ["Claude Code", new IdeBridge(this.vaultPath(), this.manifest.version, viewer)],
+      ["Copilot CLI", new CopilotBridge(this.vaultPath(), this.manifest.version, viewer)],
+    ];
+    for (const [name, bridge] of candidates) {
+      try {
+        await bridge.start();
+        this.bridges.push(bridge);
+      } catch (error) {
+        bridge.stop();
+        console.warn(`Terminal Pane: could not start the ${name} connection`, error);
+      }
+    }
+    this.shareSelection();
+  }
+
+  private stopBridges(): void {
+    for (const bridge of this.bridges) bridge.stop();
+    this.bridges = [];
+  }
+
+  /**
+   * Shows an edit Claude Code or Copilot CLI proposes next to the terminal, and gives the keyboard back to the
    * terminal, where the edit is approved or rejected.
    */
-  private async showDiff(request: DiffRequest): Promise<void> {
+  private async showDiff(request: DiffRequest, assistant: string): Promise<void> {
     const { workspace } = this.app;
     const terminal = this.lastView?.leaf ?? null;
     let leaf = this.diffLeaf(request.tabName);
@@ -116,7 +126,7 @@ export default class TerminalPanePlugin extends Plugin implements SessionContext
     const root = this.vaultPath().replace(/[\\/]+$/, "");
     const inVault = request.path.toLowerCase().startsWith(root.toLowerCase()) && /^[\\/]/.test(request.path.slice(root.length));
     const label = inVault ? request.path.slice(root.length + 1).replace(/\\/g, "/") : request.path;
-    const state: DiffState = { tabName: request.tabName, path: request.path, label, contents: request.contents };
+    const state: DiffState = { tabName: request.tabName, assistant, path: request.path, label, contents: request.contents };
     await leaf.setViewState({ type: DIFF_VIEW_TYPE, active: false, state: { ...state } });
     await workspace.revealLeaf(leaf);
     if (terminal) {
@@ -132,7 +142,7 @@ export default class TerminalPanePlugin extends Plugin implements SessionContext
 
   /**
    * Follows the open note and its selection. Nothing is sent while the terminal or another view
-   * without a file is in front, so Claude Code keeps the note last looked at.
+   * without a file is in front, so the assistants keep the note last looked at.
    */
   private trackSelection(): void {
     const schedule = () => {
@@ -145,8 +155,7 @@ export default class TerminalPanePlugin extends Plugin implements SessionContext
   }
 
   private shareSelection(): void {
-    const bridge = this.bridge;
-    if (!bridge) return;
+    if (this.bridges.length === 0) return;
     const { workspace } = this.app;
     const active = workspace.activeEditor;
     const file = active?.file ?? workspace.getActiveFile();
@@ -154,17 +163,20 @@ export default class TerminalPanePlugin extends Plugin implements SessionContext
     const filePath = join(this.vaultPath(), file.path);
     const editor = active?.editor;
     if (!editor) {
-      bridge.setSelection({ filePath, text: "", start: { line: 0, character: 0 }, end: { line: 0, character: 0 } });
+      for (const bridge of this.bridges) {
+        bridge.setSelection({ filePath, text: "", start: { line: 0, character: 0 }, end: { line: 0, character: 0 } });
+      }
       return;
     }
     const { anchor, head } = editor.listSelections()[0] ?? { anchor: editor.getCursor(), head: editor.getCursor() };
     const [from, to] = anchor.line < head.line || (anchor.line === head.line && anchor.ch <= head.ch) ? [anchor, head] : [head, anchor];
-    bridge.setSelection({
+    const selection = {
       filePath,
       text: editor.getSelection(),
       start: { line: from.line, character: from.ch },
       end: { line: to.line, character: to.ch },
-    });
+    };
+    for (const bridge of this.bridges) bridge.setSelection(selection);
   }
 
   async loadSettings(): Promise<void> {
@@ -314,7 +326,7 @@ export default class TerminalPanePlugin extends Plugin implements SessionContext
   }
 
   programEnvironment(): Record<string, string> {
-    return this.bridge?.environment() ?? {};
+    return Object.assign({}, ...this.bridges.map((bridge) => bridge.environment()));
   }
 
   openFile(path: string, newTab: boolean): void {

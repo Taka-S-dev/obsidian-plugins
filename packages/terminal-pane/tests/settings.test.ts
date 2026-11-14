@@ -75,8 +75,8 @@ test("new profile ids fill the first free number", () => {
   assert.equal(newProfileId(["profile-1", "profile-3"]), "profile-2");
 });
 
-test("sharing the open note with Claude Code is on unless turned off", () => {
-  assert.equal(defaults.shareWithClaude, true);
-  assert.equal(normalizeSettings({ shareWithClaude: false }, defaults).shareWithClaude, false);
-  assert.equal(normalizeSettings({ shareWithClaude: "no" }, defaults).shareWithClaude, true);
+test("connecting Claude Code and Copilot CLI is on unless turned off", () => {
+  assert.equal(defaults.connectAssistants, true);
+  assert.equal(normalizeSettings({ connectAssistants: false }, defaults).connectAssistants, false);
+  assert.equal(normalizeSettings({ connectAssistants: "no" }, defaults).connectAssistants, true);
 });

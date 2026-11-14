@@ -15,11 +15,22 @@ const TOKEN_HEADER = "x-claude-code-ide-authorization";
 
 /** Where proposed edits are shown. */
 export interface DiffViewer {
-  show(request: DiffRequest): void;
+  /** `assistant` names the program that proposes the edit. */
+  show(request: DiffRequest, assistant: string): void;
   close(tabName: string): void;
 }
 
-export class IdeBridge {
+/** A connection a terminal assistant uses to see what is open in Obsidian. */
+export interface AssistantBridge {
+  /** Starts listening and announces the connection. Rejects if either fails. */
+  start(): Promise<void>;
+  stop(): void;
+  /** Variables for programs started in the terminal. */
+  environment(): Record<string, string>;
+  setSelection(selection: EditorSelection): void;
+}
+
+export class IdeBridge implements AssistantBridge {
   private server: WebSocketServer | null = null;
   private lockPath: string | null = null;
   private port = 0;
@@ -123,7 +134,7 @@ export class IdeBridge {
       const diff = diffRequest(message);
       if (diff) {
         this.diffs.set(diff.tabName, socket);
-        this.viewer.show(diff);
+        this.viewer.show(diff, "Claude Code");
         return;
       }
       const closed = closedTab(message);

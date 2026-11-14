@@ -22,10 +22,10 @@ const en = {
   attention: "Wants your attention",
   linkHint: "Click to open · Ctrl+click to open in a new tab",
   diff: {
-    tabTitle: (name: string) => `Claude: ${name}`,
+    tabTitle: (assistant: string, name: string) => `${assistant}: ${name}`,
     empty: "No proposed edit",
     newFile: "new file",
-    approveInTerminal: "Claude Code proposes this edit. Approve or reject it in the terminal; this tab closes when you do.",
+    approveInTerminal: (assistant: string) => `${assistant} proposes this edit. Approve or reject it in the terminal; this tab closes when you do.`,
     noChanges: "The edit leaves the file as it is.",
     skipped: (lines: number) => `⋯ ${lines} unchanged ${lines === 1 ? "line" : "lines"}`,
   },
@@ -94,9 +94,9 @@ const en = {
     notifications: "Mark tabs that want attention",
     notificationsDesc:
       "When a program finishes replying in a tab you are not typing in, the tab gets a blinking dot, and the taskbar button flashes if Obsidian is in the background. A reply counts as finished when output that followed Enter stops for 3 seconds, or when the program rings the bell, sends a notification or clears its taskbar progress. No sound plays.",
-    shareWithClaude: "Share the open note with Claude Code",
-    shareWithClaudeDesc:
-      "Claude Code started in the terminal connects to Obsidian as it does to VS Code, and sees which note is open and what is selected in it, so \"this note\" means the note in front of you. Applies to programs started afterwards.",
+    connectAssistants: "Connect Claude Code and Copilot CLI",
+    connectAssistantsDesc:
+      "Claude Code and GitHub Copilot CLI started in the terminal connect to Obsidian as they do to VS Code: they see which note is open and what is selected in it, and show the edits they propose as a diff next to the terminal. Applies to programs started afterwards.",
     advanced: "Advanced",
     bundledConpty: "Use the bundled ConPTY",
     bundledConptyDesc:
@@ -130,10 +130,10 @@ const ja: Strings = {
   attention: "応答があります",
   linkHint: "クリックで開く · Ctrl+クリックで新しいタブに開く",
   diff: {
-    tabTitle: (name) => `Claude: ${name}`,
+    tabTitle: (assistant, name) => `${assistant}: ${name}`,
     empty: "変更案はありません",
     newFile: "新規ファイル",
-    approveInTerminal: "Claude Code が提案している変更です。承認か拒否はターミナルで行ってください。決めるとこのタブは閉じます。",
+    approveInTerminal: (assistant) => `${assistant} が提案している変更です。承認か拒否はターミナルで行ってください。決めるとこのタブは閉じます。`,
     noChanges: "この変更でファイルの内容は変わりません。",
     skipped: (lines) => `⋯ 変更のない ${lines} 行`,
   },
@@ -202,9 +202,9 @@ const ja: Strings = {
     notifications: "応答があったタブに印を付ける",
     notificationsDesc:
       "入力中でないタブでプログラムの応答が終わると、そのタブに点滅する点が付きます。Obsidian が裏にあるときはタスクバーのボタンも点滅します。Enter のあとに続いた出力が 3 秒止まったとき、またはプログラムがベルや通知を送ったり、タスクバーの進捗表示を消したりしたときに、応答が終わったとみなします。音は鳴りません。",
-    shareWithClaude: "開いているノートを Claude Code に伝える",
-    shareWithClaudeDesc:
-      "ターミナルで起動した Claude Code が、VS Code と同じように Obsidian につながり、開いているノートと選択範囲を知ります。「このノート」と言えば目の前のノートを指します。このあと起動するプログラムから反映されます。",
+    connectAssistants: "Claude Code と Copilot CLI をつなぐ",
+    connectAssistantsDesc:
+      "ターミナルで起動した Claude Code と GitHub Copilot CLI が、VS Code と同じように Obsidian につながります。開いているノートと選択範囲を知り、提案する変更をターミナルの隣に差分で表示します。このあと起動するプログラムから反映されます。",
     advanced: "詳細",
     bundledConpty: "同梱の ConPTY を使う",
     bundledConptyDesc:

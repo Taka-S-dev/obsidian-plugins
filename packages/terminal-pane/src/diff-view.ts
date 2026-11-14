@@ -9,8 +9,10 @@ import { refreshHeader } from "./obsidian-internals.ts";
 export const DIFF_VIEW_TYPE = "terminal-pane-diff";
 
 export interface DiffState {
-  /** Claude Code's name for the diff. */
+  /** The assistant's name for the diff. */
   tabName: string;
+  /** The program that proposes the edit, such as Claude Code. */
+  assistant: string;
   /** Absolute path of the file. */
   path: string;
   /** How the path is shown: relative to the vault when inside it. */
@@ -21,7 +23,7 @@ export interface DiffState {
 
 function readState(state: unknown): DiffState | null {
   const s = state as Partial<DiffState> | null;
-  return s && typeof s.tabName === "string" && typeof s.path === "string" && typeof s.label === "string"
+  return s && typeof s.tabName === "string" && typeof s.assistant === "string" && typeof s.path === "string" && typeof s.label === "string"
     && typeof s.contents === "string" ? (s as DiffState) : null;
 }
 
@@ -36,12 +38,12 @@ export class DiffView extends ItemView {
   getViewType(): string { return DIFF_VIEW_TYPE; }
   getIcon(): string { return "file-diff"; }
   getDisplayText(): string {
-    return this.state ? this.s.diff.tabTitle(basename(this.state.path)) : this.s.diff.empty;
+    return this.state ? this.s.diff.tabTitle(this.state.assistant, basename(this.state.path)) : this.s.diff.empty;
   }
 
   get tabName(): string | null { return this.state?.tabName ?? null; }
 
-  // Not saved with the layout: after a restart Claude Code no longer waits on the edit.
+  // Not saved with the layout: after a restart the assistant no longer waits on the edit.
   getState(): Record<string, unknown> { return {}; }
 
   async setState(state: unknown, result: ViewStateResult): Promise<void> {
@@ -75,7 +77,7 @@ export class DiffView extends ItemView {
     stats.createSpan({ cls: "is-added", text: `+${result.added}` });
     stats.createSpan({ cls: "is-removed", text: `−${result.removed}` });
     if (before === "") stats.createSpan({ text: s.diff.newFile });
-    contentEl.createDiv({ cls: "terminal-pane-diff-note", text: s.diff.approveInTerminal });
+    contentEl.createDiv({ cls: "terminal-pane-diff-note", text: s.diff.approveInTerminal(state.assistant) });
 
     const body = contentEl.createDiv({ cls: "terminal-pane-diff-body" });
     if (result.hunks.length === 0) {
