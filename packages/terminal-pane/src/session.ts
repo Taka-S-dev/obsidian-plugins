@@ -3,6 +3,7 @@
 import { Notice } from "obsidian";
 import { type ILink, Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
+import { type ISearchOptions, SearchAddon } from "@xterm/addon-search";
 import { Unicode11Addon } from "@xterm/addon-unicode11";
 import { WebLinksAddon } from "@xterm/addon-web-links";
 import { WebglAddon } from "@xterm/addon-webgl";
@@ -94,6 +95,7 @@ export class TerminalSession {
   private progressBusy = false;
   private hintTimer: number | undefined;
   private hintEl: HTMLElement | null = null;
+  private readonly search = new SearchAddon();
   status: SessionStatus = "idle";
   /** Set when the program asked for attention; cleared by a key or click in the terminal. */
   attention = false;
@@ -117,6 +119,7 @@ export class TerminalSession {
       windowsPty: { backend: "conpty", buildNumber: Number(release().split(".")[2]) || undefined },
     });
     term.loadAddon(this.fit);
+    term.loadAddon(this.search);
     term.loadAddon(new Unicode11Addon());
     term.unicode.activeVersion = "11";
     term.loadAddon(new WebLinksAddon((_event, uri) => window.open(uri)));
@@ -232,6 +235,32 @@ export class TerminalSession {
       this.term.focus();
     });
   }
+
+  /**
+   * Finds text in the output and scrollback, highlighting every match. Upward finds older output,
+   * so the first search from the bottom lands on the latest match. Results arrive through
+   * onFindResults.
+   */
+  find(text: string, upward: boolean, colors: ISearchOptions["decorations"]): void {
+    if (text === "") return void this.search.clearDecorations();
+    const options: ISearchOptions = { decorations: colors };
+    if (upward) this.search.findPrevious(text, options);
+    else this.search.findNext(text, options);
+  }
+
+  /** Called with the match count and the selected match (0-based, -1 for none) as a search changes. */
+  onFindResults(listener: (index: number, count: number) => void): void {
+    this.search.onDidChangeResults((event) => listener(event.resultIndex, event.resultCount));
+  }
+
+  /** Removes the highlights and the selected match. */
+  endFind(): void {
+    this.search.clearDecorations();
+    this.term.clearSelection();
+  }
+
+  /** The selected text, to start a search with. */
+  selection(): string { return this.term.getSelection(); }
 
   /** Re-reads colors, font and font size. */
   applyAppearance(): void {

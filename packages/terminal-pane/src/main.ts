@@ -15,7 +15,7 @@ import { TerminalView, VIEW_TYPE } from "./view.ts";
 import { type LinkCandidate, toVaultPath } from "./vault-links.ts";
 
 /** This plugin's commands, whose hotkeys always reach Obsidian while a terminal has the keyboard. */
-const COMMANDS = ["toggle", "new-terminal", "next-terminal", "previous-terminal", "close-terminal", "insert-note-path"];
+const COMMANDS = ["toggle", "new-terminal", "next-terminal", "previous-terminal", "close-terminal", "insert-note-path", "find"];
 
 export default class TerminalPanePlugin extends Plugin implements SessionContext {
   settings!: Settings;
@@ -38,6 +38,7 @@ export default class TerminalPanePlugin extends Plugin implements SessionContext
     this.addCommand({ id: "next-terminal", name: commands.next, callback: () => this.withView((view) => view.cycle(1)) });
     this.addCommand({ id: "previous-terminal", name: commands.previous, callback: () => this.withView((view) => view.cycle(-1)) });
     this.addCommand({ id: "close-terminal", name: commands.close, callback: () => this.closeTerminal() });
+    this.addCommand({ id: "find", name: commands.find, callback: () => this.find() });
     this.addCommand({ id: "insert-note-path", name: commands.insertNotePath, callback: () => this.insertNotePath() });
     this.addCommand({ id: "send-selection", name: commands.sendSelection, editorCallback: (editor) => this.sendSelection(editor) });
     this.registerEvent(this.app.workspace.on("editor-menu", (menu, editor) => {
@@ -241,6 +242,14 @@ export default class TerminalPanePlugin extends Plugin implements SessionContext
     } catch {
       return (file as File & { path?: string }).path ?? "";
     }
+  }
+
+  /** Opens the search bar of the terminal used last. */
+  private async find(): Promise<void> {
+    const view = await this.findView();
+    if (!view) return void new Notice(this.s.noTerminal);
+    await this.reveal(view);
+    view.openFind();
   }
 
   private async withView(action: (view: TerminalView) => void): Promise<void> {

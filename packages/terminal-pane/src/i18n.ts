@@ -11,6 +11,7 @@ const en = {
     close: "Close terminal tab",
     insertNotePath: "Insert the current note's path into the terminal",
     sendSelection: "Send selection to the terminal",
+    find: "Find in terminal",
   },
   tabs: {
     newTerminal: "New terminal",
@@ -20,6 +21,14 @@ const en = {
   },
   attention: "Wants your attention",
   linkHint: "Click to open · Ctrl+click to open in a new tab",
+  find: {
+    placeholder: "Find",
+    older: "Previous match, in older output (Enter)",
+    newer: "Next match, in newer output (Shift+Enter)",
+    close: "Close (Esc)",
+    none: "No results",
+    count: (index: number, count: number) => (index < 0 ? `${count}+` : `${index + 1} of ${count}`),
+  },
   pasteConfirm: {
     title: (lines: number) => `Paste text that runs ${lines === 1 ? "a line" : `${lines} lines`}?`,
     desc: "This program does not take a paste as a whole, so each line runs as soon as it is pasted, as if Enter were pressed.",
@@ -93,6 +102,7 @@ const ja: Strings = {
     close: "ターミナルタブを閉じる",
     insertNotePath: "現在のノートのパスをターミナルに入力",
     sendSelection: "選択範囲をターミナルに送る",
+    find: "ターミナル内を検索",
   },
   tabs: {
     newTerminal: "新しいターミナル",
@@ -102,6 +112,14 @@ const ja: Strings = {
   },
   attention: "応答があります",
   linkHint: "クリックで開く · Ctrl+クリックで新しいタブに開く",
+  find: {
+    placeholder: "検索",
+    older: "前の一致（古い出力へ）（Enter）",
+    newer: "次の一致（新しい出力へ）（Shift+Enter）",
+    close: "閉じる（Esc）",
+    none: "見つかりません",
+    count: (index, count) => (index < 0 ? `${count}+` : `${index + 1} / ${count}`),
+  },
   pasteConfirm: {
     title: (lines) => `${lines} 行が実行される貼り付けです。貼り付けますか？`,
     desc: "このプログラムは貼り付けをまとめて受け取らないため、各行は貼り付けた時点で Enter を押したように実行されます。",

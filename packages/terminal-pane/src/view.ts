@@ -2,6 +2,7 @@
 import { ItemView, Menu, Scope, setIcon, setTooltip, type ViewStateResult, type WorkspaceLeaf } from "obsidian";
 import { tabHeaderEl } from "./obsidian-internals.ts";
 import { type SessionContext, TerminalSession } from "./session.ts";
+import { searchColorsFor } from "./theme.ts";
 
 export const VIEW_TYPE = "terminal-pane";
 
@@ -35,6 +36,9 @@ export class TerminalView extends ItemView {
   private tabsEl: HTMLElement | null = null;
   private body: HTMLElement | null = null;
   private observer: ResizeObserver | null = null;
+  private findEl: HTMLElement | null = null;
+  private findInput: HTMLInputElement | null = null;
+  private findCount: HTMLElement | null = null;
   /** Set once the first tabs exist, from the saved state or, failing that, the default profile. */
   private populated = false;
 
@@ -79,6 +83,7 @@ export class TerminalView extends ItemView {
     this.button(actions, "plus", this.ctx.s.tabs.newTerminal, () => this.add(this.ctx.settings.defaultProfile));
     this.button(actions, "chevron-down", this.ctx.s.tabs.chooseProfile, (event) => this.profileMenu(event));
     this.body = this.contentEl.createDiv({ cls: "terminal-pane-body" });
+    this.buildFindBar(this.body);
 
     // Files dropped on the terminal are typed in as paths, as in VS Code.
     this.registerDomEvent(this.body, "dragover", (event) => {
@@ -137,6 +142,9 @@ export class TerminalView extends ItemView {
     const session = new TerminalSession(this.body, this.ctx, profileId);
     session.onChange = () => this.renderTabs();
     session.onAttention = () => this.attention(session);
+    session.onFindResults((index, count) => {
+      if (session === this.current) this.showFindCount(index, count);
+    });
     session.setVisible(false);
     this.sessions.push(session);
     if (show) this.activate(session);
@@ -146,6 +154,7 @@ export class TerminalView extends ItemView {
   }
 
   activate(session: TerminalSession): void {
+    if (session !== this.current) this.closeFind(false);
     for (const other of this.sessions) other.setVisible(other === session);
     this.current = session;
     session.setAttention(false);
@@ -179,6 +188,19 @@ export class TerminalView extends ItemView {
 
   activeSession(): TerminalSession | null { return this.current; }
 
+  /** Shows the search bar over the current terminal, starting from the selected text if any. */
+  openFind(): void {
+    const session = this.current;
+    const input = this.findInput;
+    if (!session || !input || !this.findEl) return;
+    this.findEl.removeClass("is-hidden");
+    const selected = session.selection();
+    if (selected && !selected.includes("\n")) input.value = selected;
+    input.focus();
+    input.select();
+    if (input.value) this.runFind(true, true);
+  }
+
   findSession(profileId: string): TerminalSession | undefined {
     return this.sessions.find((session) => session.profileId === profileId);
   }
@@ -202,6 +224,62 @@ export class TerminalView extends ItemView {
     if (!inBackground && session.hasFocus()) return;
     session.setAttention(true);
     if (inBackground) obsidianWindow()?.flashFrame(true);
+  }
+
+  // Search bar
+
+  /**
+   * A bar over the top right of the terminal, as in VS Code. Enter finds the next match upward,
+   * into older output, Shift+Enter downward, Esc closes it.
+   */
+  private buildFindBar(body: HTMLElement): void {
+    const { find } = this.ctx.s;
+    const bar = body.createDiv({ cls: "terminal-pane-find is-hidden" });
+    const input = bar.createEl("input", {
+      type: "text",
+      cls: "terminal-pane-find-input",
+      attr: { placeholder: find.placeholder, "aria-label": find.placeholder, spellcheck: "false" },
+    });
+    this.findCount = bar.createSpan({ cls: "terminal-pane-find-count", attr: { "aria-live": "polite" } });
+    this.button(bar, "arrow-up", find.older, () => this.runFind(true));
+    this.button(bar, "arrow-down", find.newer, () => this.runFind(false));
+    this.button(bar, "x", find.close, () => this.closeFind(true));
+    this.registerDomEvent(input, "input", () => this.runFind(true, true));
+    this.registerDomEvent(input, "keydown", (event) => {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        this.runFind(!event.shiftKey);
+      } else if (event.key === "Escape") {
+        event.preventDefault();
+        this.closeFind(true);
+      }
+    });
+    this.findEl = bar;
+    this.findInput = input;
+  }
+
+  /** `fromBottom` starts again at the latest output, as when the search text changes. */
+  private runFind(upward: boolean, fromBottom = false): void {
+    const session = this.current;
+    const text = this.findInput?.value ?? "";
+    if (!session) return;
+    if (fromBottom || text === "") session.endFind();
+    if (text === "") return void this.findCount?.setText("");
+    session.find(text, upward, searchColorsFor(this.contentEl));
+  }
+
+  private showFindCount(index: number, count: number): void {
+    const { find } = this.ctx.s;
+    const input = this.findInput?.value ?? "";
+    this.findCount?.setText(input === "" ? "" : count === 0 ? find.none : find.count(index, count));
+    this.findEl?.toggleClass("has-no-results", input !== "" && count === 0);
+  }
+
+  private closeFind(focusTerminal: boolean): void {
+    if (!this.findEl || this.findEl.hasClass("is-hidden")) return;
+    this.findEl.addClass("is-hidden");
+    this.current?.endFind();
+    if (focusTerminal) this.current?.focus();
   }
 
   private isShown(): boolean {

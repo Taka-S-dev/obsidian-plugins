@@ -166,6 +166,44 @@
   font-family: var(--font-monospace);
 }
 
+/* The search bar over the top right of the terminal, as in VS Code. */
+.terminal-pane-find {
+  position: absolute;
+  top: var(--size-4-1);
+  right: var(--size-4-4);
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: var(--size-2-1);
+  padding: var(--size-2-1) var(--size-2-2);
+  background-color: var(--background-secondary);
+  border: var(--border-width) solid var(--background-modifier-border);
+  border-radius: var(--radius-m);
+  box-shadow: var(--shadow-s);
+}
+
+.terminal-pane-find.is-hidden {
+  display: none;
+}
+
+.terminal-pane-find .terminal-pane-find-input {
+  width: 14em;
+  height: var(--input-height);
+  font-size: var(--font-ui-small);
+}
+
+.terminal-pane-find.has-no-results .terminal-pane-find-input {
+  border-color: var(--background-modifier-error);
+}
+
+.terminal-pane-find-count {
+  min-width: 5em;
+  font-size: var(--font-ui-smaller);
+  color: var(--text-muted);
+  text-align: center;
+  white-space: nowrap;
+}
+
 /* Which note a hovered link opens, and how. Placed in session.ts next to the pointer. */
 .terminal-pane-link-hint {
   position: fixed;
