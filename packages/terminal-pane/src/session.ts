@@ -34,6 +34,8 @@ export interface SessionContext {
   passToObsidian(event: KeyboardEvent): boolean;
   /** Registers a running process so it is stopped when the plugin unloads; returns the undo. */
   track(process: PtyProcess): () => void;
+  /** Opens a vault file next to the terminal, or in a new tab. */
+  openFile(path: string, newTab: boolean): void;
   /** The file a link points at, or null if no such file is in the vault. */
   vaultLink(link: LinkCandidate): VaultLink | null;
   /** The paths of files dropped on a terminal, ready to type, or null when nothing droppable is held. */
@@ -203,6 +205,14 @@ export class TerminalSession {
   }
 
   focus(): void { this.term.focus(); }
+
+  /**
+   * Whether the program is working on what was typed: from Enter until its output goes quiet, or
+   * while it shows taskbar progress.
+   */
+  isWorking(): boolean {
+    return this.status === "running" && (this.awaitingReply || this.progressBusy);
+  }
 
   /** Whether the terminal has the keyboard. */
   hasFocus(): boolean {

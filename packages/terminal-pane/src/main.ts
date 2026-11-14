@@ -205,6 +205,11 @@ export default class TerminalPanePlugin extends Plugin implements SessionContext
     return metadataCache.getFirstLinkpathDest(normalizePath(path), "");
   }
 
+  openFile(path: string, newTab: boolean): void {
+    const file = this.app.vault.getFileByPath(path);
+    if (file) void this.openInWorkspace(file, newTab);
+  }
+
   /** Opens a file next to the terminal, never in the terminal's own tab. */
   private async openInWorkspace(file: TFile, newTab: boolean): Promise<void> {
     const { workspace } = this.app;

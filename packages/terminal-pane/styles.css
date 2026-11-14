@@ -226,3 +226,18 @@
 .terminal-pane-link-hint-keys {
   color: var(--text-muted);
 }
+
+/* How many notes the terminal's programs changed; hidden until there is one. */
+.terminal-pane-changes {
+  gap: 2px;
+  color: var(--color-accent);
+}
+
+.terminal-pane-changes.is-hidden {
+  display: none;
+}
+
+.terminal-pane-changes-count {
+  font-size: var(--font-ui-smaller);
+  font-variant-numeric: tabular-nums;
+}

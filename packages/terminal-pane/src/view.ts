@@ -1,10 +1,21 @@
 // The terminal pane: a row of tabs, one TerminalSession per tab.
-import { ItemView, Menu, Scope, setIcon, setTooltip, type ViewStateResult, type WorkspaceLeaf } from "obsidian";
+import { ItemView, Menu, Scope, setIcon, setTooltip, TFile, type TAbstractFile, type ViewStateResult, type WorkspaceLeaf } from "obsidian";
+import { type Change, ChangeList } from "./changes.ts";
 import { tabHeaderEl } from "./obsidian-internals.ts";
 import { type SessionContext, TerminalSession } from "./session.ts";
 import { searchColorsFor } from "./theme.ts";
 
 export const VIEW_TYPE = "terminal-pane";
+
+/** A note saved this soon after typing in it is taken to be the editor's own save. */
+const TYPING_GRACE_MS = 5000;
+
+const CHANGE_ICONS: Record<Change["kind"], string> = {
+  created: "file-plus",
+  modified: "file-pen-line",
+  renamed: "file-symlink",
+  deleted: "file-x",
+};
 
 /** The Obsidian window, through Electron's remote module; undefined where that is unavailable. */
 function obsidianWindow(): { flashFrame(flag: boolean): void } | undefined {
@@ -39,6 +50,10 @@ export class TerminalView extends ItemView {
   private findEl: HTMLElement | null = null;
   private findInput: HTMLInputElement | null = null;
   private findCount: HTMLElement | null = null;
+  private readonly changes = new ChangeList();
+  private changesButton: HTMLElement | null = null;
+  /** When each note was last typed in, so the editor's own saves are not taken for a program's. */
+  private readonly typedAt = new Map<string, number>();
   /** Set once the first tabs exist, from the saved state or, failing that, the default profile. */
   private populated = false;
 
@@ -80,6 +95,10 @@ export class TerminalView extends ItemView {
     const bar = this.contentEl.createDiv({ cls: "terminal-pane-bar" });
     this.tabsEl = bar.createDiv({ cls: "terminal-pane-tabs", attr: { role: "tablist" } });
     const actions = bar.createDiv({ cls: "terminal-pane-actions" });
+    this.changesButton = this.button(actions, "file-diff", "", (event) => this.changesMenu(event));
+    this.changesButton.addClass("terminal-pane-changes");
+    this.changesButton.createSpan({ cls: "terminal-pane-changes-count" });
+    this.renderChanges();
     this.button(actions, "plus", this.ctx.s.tabs.newTerminal, () => this.add(this.ctx.settings.defaultProfile));
     this.button(actions, "chevron-down", this.ctx.s.tabs.chooseProfile, (event) => this.profileMenu(event));
     this.body = this.contentEl.createDiv({ cls: "terminal-pane-body" });
@@ -113,6 +132,7 @@ export class TerminalView extends ItemView {
     const onFonts = () => { for (const session of this.sessions) session.fontsChanged(); };
     document.fonts.addEventListener("loadingdone", onFonts);
     this.register(() => document.fonts.removeEventListener("loadingdone", onFonts));
+    this.watchVault();
     this.registerEvent(this.app.workspace.on("active-leaf-change", (leaf) => {
       if (leaf !== this.leaf) return;
       this.current?.setAttention(false);
@@ -224,6 +244,76 @@ export class TerminalView extends ItemView {
     if (!inBackground && session.hasFocus()) return;
     session.setAttention(true);
     if (inBackground) obsidianWindow()?.flashFrame(true);
+  }
+
+  // Notes changed by the terminal's programs
+
+  /**
+   * Files in the vault that change while a program in this pane is working on what was typed, such
+   * as notes an assistant edits. Changes that follow typing in Obsidian's editor are left out: they
+   * are the editor saving.
+   */
+  private watchVault(): void {
+    const { vault, workspace } = this.app;
+    const working = () => this.sessions.some((session) => session.isWorking());
+    const fromProgram = (file: TAbstractFile) =>
+      file instanceof TFile && working() && Date.now() - (this.typedAt.get(file.path) ?? 0) > TYPING_GRACE_MS;
+    this.registerEvent(workspace.on("editor-change", (_editor, info) => {
+      if (info.file) this.typedAt.set(info.file.path, Date.now());
+    }));
+    this.registerEvent(vault.on("create", (file) => {
+      // Obsidian reports every file as created while it loads the vault.
+      if (workspace.layoutReady && fromProgram(file)) this.changed(() => this.changes.record(file.path, "created"));
+    }));
+    this.registerEvent(vault.on("modify", (file) => {
+      if (fromProgram(file)) this.changed(() => this.changes.record(file.path, "modified"));
+    }));
+    this.registerEvent(vault.on("delete", (file) => {
+      if (fromProgram(file)) this.changed(() => this.changes.record(file.path, "deleted"));
+    }));
+    this.registerEvent(vault.on("rename", (file, oldPath) => {
+      if (fromProgram(file)) this.changed(() => this.changes.rename(oldPath, file.path));
+    }));
+  }
+
+  private changed(update: () => void): void {
+    update();
+    this.renderChanges();
+  }
+
+  private renderChanges(): void {
+    const button = this.changesButton;
+    if (!button) return;
+    const count = this.changes.size;
+    button.toggleClass("is-hidden", count === 0);
+    button.querySelector(".terminal-pane-changes-count")?.setText(String(count));
+    const label = this.ctx.s.changes.title(count);
+    button.setAttr("aria-label", label);
+    setTooltip(button, label);
+  }
+
+  /** The changed files, newest first: click opens one, Ctrl+click in a new tab. */
+  private changesMenu(event: MouseEvent): void {
+    const { changes: s } = this.ctx.s;
+    const menu = new Menu();
+    for (const change of this.changes.list()) {
+      menu.addItem((item) => {
+        item.setTitle(this.changeTitle(change)).setIcon(CHANGE_ICONS[change.kind]);
+        if (change.kind === "deleted") item.setDisabled(true);
+        else item.onClick((e) => this.ctx.openFile(change.path, e.ctrlKey || e.metaKey));
+      });
+    }
+    menu.addSeparator();
+    menu.addItem((item) => item.setTitle(s.clear).setIcon("list-x").onClick(() => this.changed(() => this.changes.clear())));
+    menu.showAtMouseEvent(event);
+  }
+
+  private changeTitle(change: Change): string {
+    const { changes: s } = this.ctx.s;
+    if (change.kind === "deleted") return `${change.path} ${s.deleted}`;
+    if (change.kind === "renamed" && change.from) return `${change.path} ← ${change.from}`;
+    if (change.kind === "created") return `${change.path} ${s.created}`;
+    return change.path;
   }
 
   // Search bar
@@ -386,7 +476,7 @@ export class TerminalView extends ItemView {
     menu.showAtMouseEvent(event);
   }
 
-  private button(parent: HTMLElement, icon: string, label: string, onClick: (event: MouseEvent) => void): void {
+  private button(parent: HTMLElement, icon: string, label: string, onClick: (event: MouseEvent) => void): HTMLElement {
     const el = parent.createDiv({
       cls: "clickable-icon terminal-pane-action",
       attr: { role: "button", tabindex: "0", "aria-label": label },
@@ -400,5 +490,6 @@ export class TerminalView extends ItemView {
         el.click();
       }
     });
+    return el;
   }
 }

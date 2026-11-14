@@ -62,6 +62,7 @@ Shift+Enter is sent as Alt+Enter (ESC, then Enter). xterm.js, which draws the te
 - A path or `[[wikilink]]` in the output that names a file in the vault becomes a link: click it to open the note, Ctrl+click to open it in a new tab. Paths may be relative to the vault or absolute, with either slash. A relative path with no file at that place is looked up the way Obsidian resolves a `[[link]]`, so a bare file name such as `Index.md` works too. A path with spaces counts when it is in quotes. The note never opens in the terminal's own tab.
 - Links keep the colors the program gave them. Hovering underlines one, and after a moment shows the note it opens and how.
 - Drop files or folders on the terminal to type their paths, quoted as needed: relative to the vault when dragged from Obsidian, absolute when dragged from Windows Explorer.
+- Notes that change while a program is working on what you typed, such as notes an assistant edits, are counted on a button next to **+**. Its menu lists them, newest first, marked new, renamed or deleted: click one to open it, Ctrl+click to open it in a new tab. Saves of a note you have just typed in are left out. **Clear the list** in the menu empties it.
 
 ### Notifications
 

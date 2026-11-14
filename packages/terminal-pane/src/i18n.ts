@@ -21,6 +21,12 @@ const en = {
   },
   attention: "Wants your attention",
   linkHint: "Click to open · Ctrl+click to open in a new tab",
+  changes: {
+    title: (count: number) => `${count} ${count === 1 ? "note" : "notes"} changed by programs in the terminal`,
+    created: "(new)",
+    deleted: "(deleted)",
+    clear: "Clear the list",
+  },
   find: {
     placeholder: "Find",
     older: "Previous match, in older output (Enter)",
@@ -112,6 +118,12 @@ const ja: Strings = {
   },
   attention: "応答があります",
   linkHint: "クリックで開く · Ctrl+クリックで新しいタブに開く",
+  changes: {
+    title: (count) => `ターミナルのプログラムが変更したノート：${count} 件`,
+    created: "（新規）",
+    deleted: "（削除）",
+    clear: "一覧を消す",
+  },
   find: {
     placeholder: "検索",
     older: "前の一致（古い出力へ）（Enter）",
