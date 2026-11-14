@@ -1,4 +1,4 @@
-import { FileSystemAdapter, getLanguage, normalizePath, Notice, Platform, Plugin, TFile, type WorkspaceLeaf } from "obsidian";
+import { type Editor, FileSystemAdapter, getLanguage, normalizePath, Notice, Platform, Plugin, TFile, type WorkspaceLeaf } from "obsidian";
 import { lstatSync } from "node:fs";
 import { join } from "node:path";
 import xtermCss from "@xterm/xterm/css/xterm.css";
@@ -39,6 +39,11 @@ export default class TerminalPanePlugin extends Plugin implements SessionContext
     this.addCommand({ id: "previous-terminal", name: commands.previous, callback: () => this.withView((view) => view.cycle(-1)) });
     this.addCommand({ id: "close-terminal", name: commands.close, callback: () => this.closeTerminal() });
     this.addCommand({ id: "insert-note-path", name: commands.insertNotePath, callback: () => this.insertNotePath() });
+    this.addCommand({ id: "send-selection", name: commands.sendSelection, editorCallback: (editor) => this.sendSelection(editor) });
+    this.registerEvent(this.app.workspace.on("editor-menu", (menu, editor) => {
+      if (!editor.somethingSelected()) return;
+      menu.addItem((item) => item.setTitle(commands.sendSelection).setIcon("square-terminal").onClick(() => this.sendSelection(editor)));
+    }));
     this.registerProfileCommands();
     this.addSettingTab(new TerminalSettingTab(this.app, this));
 
@@ -154,12 +159,26 @@ export default class TerminalPanePlugin extends Plugin implements SessionContext
   private async insertNotePath(): Promise<void> {
     const file = this.app.workspace.getActiveFile();
     if (!file) return void new Notice(this.s.noNote);
+    const text = quotePath(file.path);
+    if (text === null) return void new Notice(this.s.unsafePath(file.path));
+    await this.sendToTerminal(text);
+  }
+
+  /** The selection, or the line the cursor is on, typed into the terminal without pressing Enter. */
+  private async sendSelection(editor: Editor): Promise<void> {
+    const selected = editor.somethingSelected() ? editor.getSelection() : editor.getLine(editor.getCursor().line);
+    // A final line break would act as Enter.
+    const text = selected.replace(/[\r\n]+$/, "");
+    if (text.trim() === "") return;
+    await this.sendToTerminal(text);
+  }
+
+  /** Types text into the terminal used last, as a paste, and moves the keyboard there. */
+  private async sendToTerminal(text: string): Promise<void> {
     const view = await this.findView();
     const session = view?.activeSession();
     if (!view || !session) return void new Notice(this.s.noTerminal);
     await this.reveal(view);
-    const text = quotePath(file.path);
-    if (text === null) return void new Notice(this.s.unsafePath(file.path));
     session.paste(text);
   }
 

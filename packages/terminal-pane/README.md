@@ -36,6 +36,7 @@ The row above the terminal shows the tabs.
 | Open terminal: *profile* | Show the tab running that profile, or open one. There is one per profile. |
 | Next / Previous terminal tab, Close terminal tab | Move between tabs or close the current one. |
 | Insert the current note's path into the terminal | Type the note's vault-relative path into the terminal, for example after `@` in Copilot CLI. A path with spaces or shell punctuation goes in double quotes; a path containing `$`, `` ` ``, `%`, a quotation mark (including typographic ones, which PowerShell reads as quotes) or a control character is not inserted, since a shell would expand or end the quotes there when you press Enter. |
+| Send selection to the terminal | Type the selected text, or the line the cursor is on, into the terminal without pressing Enter. Also in the editor's right-click menu when text is selected. |
 
 None has a default hotkey; set them in Settings → Hotkeys.
 

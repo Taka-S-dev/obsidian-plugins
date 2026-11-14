@@ -10,6 +10,7 @@ const en = {
     previous: "Previous terminal tab",
     close: "Close terminal tab",
     insertNotePath: "Insert the current note's path into the terminal",
+    sendSelection: "Send selection to the terminal",
   },
   tabs: {
     newTerminal: "New terminal",
@@ -91,6 +92,7 @@ const ja: Strings = {
     previous: "前のターミナルタブ",
     close: "ターミナルタブを閉じる",
     insertNotePath: "現在のノートのパスをターミナルに入力",
+    sendSelection: "選択範囲をターミナルに送る",
   },
   tabs: {
     newTerminal: "新しいターミナル",
