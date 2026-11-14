@@ -5,7 +5,7 @@ import xtermCss from "@xterm/xterm/css/xterm.css";
 import { findExecutable, quotePath } from "./command-line.ts";
 import { matchesHotkey } from "./hotkeys.ts";
 import { stringsFor, type Strings } from "./i18n.ts";
-import { hotkeysFor } from "./obsidian-internals.ts";
+import { draggedVaultPaths, hotkeysFor } from "./obsidian-internals.ts";
 import { confirmPaste } from "./paste-confirm.ts";
 import type { PtyProcess } from "./pty-process.ts";
 import type { SessionContext, VaultLink } from "./session.ts";
@@ -193,8 +193,35 @@ export default class TerminalPanePlugin extends Plugin implements SessionContext
     await leaf.openFile(file, { active: true });
   }
 
+  /**
+   * Paths for files dropped on a terminal, ready to type: relative to the vault for files dragged
+   * from Obsidian (programs start in the vault folder), absolute for files from Windows Explorer.
+   * Null when the drop holds no files.
+   */
+  dropText(data: DataTransfer | null): string | null {
+    const fromVault = draggedVaultPaths(this.app);
+    const paths = fromVault ?? Array.from(data?.files ?? []).map((file) => this.pathOfFile(file)).filter((p) => p !== "");
+    if (paths.length === 0) return null;
+    const quoted: string[] = [];
+    for (const path of paths) {
+      const text = quotePath(path);
+      if (text === null) new Notice(this.s.unsafePath(path));
+      else quoted.push(text);
+    }
+    return quoted.join(" ");
+  }
+
   confirmPaste(lines: number): Promise<boolean> {
     return confirmPaste(this.app, this.s, lines);
+  }
+
+  private pathOfFile(file: File): string {
+    try {
+      const electron = window.require?.("electron") as { webUtils?: { getPathForFile(file: File): string } } | undefined;
+      return electron?.webUtils?.getPathForFile(file) ?? (file as File & { path?: string }).path ?? "";
+    } catch {
+      return (file as File & { path?: string }).path ?? "";
+    }
   }
 
   private async withView(action: (view: TerminalView) => void): Promise<void> {

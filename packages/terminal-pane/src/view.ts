@@ -80,6 +80,21 @@ export class TerminalView extends ItemView {
     this.button(actions, "chevron-down", this.ctx.s.tabs.chooseProfile, (event) => this.profileMenu(event));
     this.body = this.contentEl.createDiv({ cls: "terminal-pane-body" });
 
+    // Files dropped on the terminal are typed in as paths, as in VS Code.
+    this.registerDomEvent(this.body, "dragover", (event) => {
+      if (!this.current || this.current.status !== "running") return;
+      event.preventDefault();
+      if (event.dataTransfer) event.dataTransfer.dropEffect = "copy";
+    });
+    this.registerDomEvent(this.body, "drop", (event) => {
+      const session = this.current;
+      if (!session || session.status !== "running") return;
+      event.preventDefault();
+      event.stopPropagation();
+      const text = this.ctx.dropText(event.dataTransfer);
+      if (text) session.paste(text);
+    });
+
     this.observer = new ResizeObserver(() => {
       this.reserveStatusBar();
       this.current?.scheduleFit();

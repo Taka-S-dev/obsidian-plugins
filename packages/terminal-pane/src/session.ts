@@ -35,6 +35,8 @@ export interface SessionContext {
   track(process: PtyProcess): () => void;
   /** The file a link points at, or null if no such file is in the vault. */
   vaultLink(link: LinkCandidate): VaultLink | null;
+  /** The paths of files dropped on a terminal, ready to type, or null when nothing droppable is held. */
+  dropText(data: DataTransfer | null): string | null;
   /** Asks whether to paste text of this many lines into a program that would run each line. */
   confirmPaste(lines: number): Promise<boolean>;
 }

@@ -49,3 +49,18 @@ export function tabHeaderEl(leaf: WorkspaceLeaf): HTMLElement | undefined {
   const el = (leaf as unknown as { tabHeaderEl?: unknown }).tabHeaderEl;
   return el instanceof HTMLElement ? el : undefined;
 }
+
+/**
+ * Vault paths of the files or folders being dragged from Obsidian (the file explorer, a tab, a
+ * search result), or null when the drag did not start in Obsidian.
+ */
+export function draggedVaultPaths(app: App): string[] | null {
+  const draggable = (app as unknown as { dragManager?: { draggable?: unknown } }).dragManager?.draggable as
+    | { file?: { path?: unknown }; files?: { path?: unknown }[] }
+    | null
+    | undefined;
+  if (!draggable) return null;
+  const items = draggable.files ?? (draggable.file ? [draggable.file] : []);
+  const paths = items.map((item) => item.path).filter((path): path is string => typeof path === "string");
+  return paths.length > 0 ? paths : null;
+}
