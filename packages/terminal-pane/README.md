@@ -51,6 +51,7 @@ Copy and paste follow Windows Terminal:
 - Ctrl+C copies when text is selected; otherwise it reaches the program as an interrupt.
 - Ctrl+Shift+C copies. Ctrl+V and Ctrl+Shift+V paste.
 - Right-click copies the selection, or pastes when nothing is selected; no menu opens. Programs that use the mouse, such as Copilot CLI, handle right-click themselves; hold Shift to use the terminal's instead.
+- Pasting text with a line break, even a final one, into a program that does not take a paste as a whole, such as PowerShell or Command Prompt, asks first: each line would run as soon as it arrives. Claude Code and Copilot CLI take a paste as a whole, so they are not asked about. Control characters other than tabs and line breaks are left out of every paste.
 
 Shift+Enter is sent as Alt+Enter (ESC, then Enter). xterm.js, which draws the terminal, sends Shift+Enter as a plain Enter, so programs could not tell them apart; Alt+Enter is a line break Claude Code accepts. VS Code's terminal, also built on xterm.js, needs Claude Code's `/terminal-setup` for the same reason. In PowerShell, Shift+Enter then does nothing rather than running the line. Turn this off under **Shift+Enter inserts a line break** to send a plain Enter. Ctrl+J inserts a line break in Claude Code either way.
 

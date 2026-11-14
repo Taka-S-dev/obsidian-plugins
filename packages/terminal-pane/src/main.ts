@@ -6,6 +6,7 @@ import { findExecutable, quotePath } from "./command-line.ts";
 import { matchesHotkey } from "./hotkeys.ts";
 import { stringsFor, type Strings } from "./i18n.ts";
 import { hotkeysFor } from "./obsidian-internals.ts";
+import { confirmPaste } from "./paste-confirm.ts";
 import type { PtyProcess } from "./pty-process.ts";
 import type { SessionContext } from "./session.ts";
 import { defaultSettings, normalizeSettings, type Settings } from "./settings.ts";
@@ -159,6 +160,10 @@ export default class TerminalPanePlugin extends Plugin implements SessionContext
     const text = quotePath(file.path);
     if (text === null) return void new Notice(this.s.unsafePath(file.path));
     session.paste(text);
+  }
+
+  confirmPaste(lines: number): Promise<boolean> {
+    return confirmPaste(this.app, this.s, lines);
   }
 
   private async withView(action: (view: TerminalView) => void): Promise<void> {

@@ -11,6 +11,7 @@ import { release } from "node:os";
 import { isOsc777Notify, readOsc9 } from "./attention.ts";
 import { findExecutable, launchCommand, splitCommandLine, type CommandLine } from "./command-line.ts";
 import type { Strings } from "./i18n.ts";
+import { cleanPaste, linesRun } from "./paste.ts";
 import { PtyProcess } from "./pty-process.ts";
 import type { Profile, Settings } from "./settings.ts";
 import { fontFor, themeFor } from "./theme.ts";
@@ -31,6 +32,8 @@ export interface SessionContext {
   passToObsidian(event: KeyboardEvent): boolean;
   /** Registers a running process so it is stopped when the plugin unloads; returns the undo. */
   track(process: PtyProcess): () => void;
+  /** Asks whether to paste text of this many lines into a program that would run each line. */
+  confirmPaste(lines: number): Promise<boolean>;
 }
 
 export type SessionStatus = "idle" | "running" | "exited";
@@ -191,10 +194,25 @@ export class TerminalSession {
     if (!this.disposed) this.onChange();
   }
 
-  /** Types text into the program as a paste, so shells do not run it before Enter. */
-  paste(text: string): void {
-    if (this.status === "running") this.term.paste(text);
-    this.term.focus();
+  /**
+   * Types text into the program as a paste. Programs that turn on bracketed paste (Claude Code,
+   * Copilot CLI) take it as a whole and wait for Enter; others, such as PowerShell and cmd.exe,
+   * run each line as it arrives, so text with a line break, even a final one, is pasted only
+   * after the user agrees, as in Windows Terminal.
+   */
+  paste(raw: string): void {
+    if (this.status !== "running") return void this.term.focus();
+    const text = cleanPaste(raw);
+    const lines = linesRun(text);
+    if (lines === 0 || this.term.modes.bracketedPasteMode) {
+      this.term.paste(text);
+      this.term.focus();
+      return;
+    }
+    void this.ctx.confirmPaste(lines).then((ok) => {
+      if (ok && this.status === "running") this.term.paste(text);
+      this.term.focus();
+    });
   }
 
   /** Re-reads colors, font and font size. */

@@ -51,6 +51,7 @@
 - Ctrl+C は、文字を選択していればコピーする。選択していなければ中断としてプログラムに届く。
 - Ctrl+Shift+C はコピー。Ctrl+V と Ctrl+Shift+V は貼り付け。
 - 右クリックは、選択していればコピー、していなければ貼り付け。メニューは出ない。Copilot CLI のようにマウスを使うプログラムでは、右クリックはそのプログラムが処理する。Shift を押しながらならターミナル側の動きになる。
+- PowerShell やコマンド プロンプトのように、貼り付けをまとめて受け取らないプログラムに改行を含む文字（末尾の改行だけでも）を貼り付けるときは、先に確認する。各行が届いた時点で実行されるため。Claude Code と Copilot CLI は貼り付けをまとめて受け取るので、確認は出ない。どの貼り付けでも、タブと改行以外の制御文字は取り除く。
 
 Shift+Enter は Alt+Enter（ESC のあとに Enter）として送る。画面を描く xterm.js は Shift+Enter を普通の Enter として送るので、プログラムには区別がつかない。Alt+Enter は Claude Code が改行として受け付けるキー。同じ xterm.js を使う VS Code のターミナルで Claude Code の `/terminal-setup` が必要なのも、同じ理由による。PowerShell では Shift+Enter を押しても、行は実行されず何も起きない。設定の **Shift+Enter で改行する** をオフにすると普通の Enter を送る。Claude Code では、どちらでも Ctrl+J で改行できる。
 
