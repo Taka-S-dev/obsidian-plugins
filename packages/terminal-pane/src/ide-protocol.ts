@@ -55,11 +55,24 @@ export function fileUrl(path: string): string {
 }
 
 /**
- * The tools Claude Code calls on its own, answered so that it carries on as without an editor:
- * no diagnostics to compare before and after an edit, and no diff tabs. Showing an edit as a diff
- * (openDiff) is declined; Claude Code then keeps to the approval prompt in the terminal.
+ * The tools Claude Code calls on its own. There are no diagnostics to compare before and after an
+ * edit. openDiff shows a proposed edit; the editor answers it (see diffRequest), and without one
+ * it is declined, so Claude Code keeps to the approval prompt in the terminal.
  */
 const TOOLS = [
+  {
+    name: "openDiff",
+    description: "Show a proposed edit to a file as a diff.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        old_file_path: { type: "string" },
+        new_file_path: { type: "string" },
+        new_file_contents: { type: "string" },
+        tab_name: { type: "string" },
+      },
+    },
+  },
   { name: "getDiagnostics", description: "Diagnostics for a file or the workspace. Obsidian has none.", inputSchema: { type: "object", properties: { uri: { type: "string" } } } },
   { name: "close_tab", description: "Close a diff tab.", inputSchema: { type: "object", properties: { tab_name: { type: "string" } } } },
   { name: "closeAllDiffTabs", description: "Close all diff tabs.", inputSchema: { type: "object", properties: {} } },
@@ -74,6 +87,37 @@ function callTool(name: unknown): unknown {
     case "closeAllDiffTabs": return text("OK");
     default: return { ...text(`Not supported in Obsidian: ${String(name)}`), isError: true };
   }
+}
+
+export interface DiffRequest {
+  /** Absolute path of the file the edit is for. */
+  path: string;
+  /** The whole file as it would be after the edit. */
+  contents: string;
+  /** Claude Code's name for the diff, which it later closes it by. */
+  tabName: string;
+}
+
+const toolCall = (message: RpcMessage, name: string): Record<string, unknown> | null => {
+  if (message.method !== "tools/call" || message.id === undefined || message.id === null) return null;
+  const params = (message.params ?? {}) as { name?: unknown; arguments?: unknown };
+  return params.name === name ? ((params.arguments ?? {}) as Record<string, unknown>) : null;
+};
+
+/** The edit an openDiff call asks to show, or null for any other message. */
+export function diffRequest(message: RpcMessage): DiffRequest | null {
+  const args = toolCall(message, "openDiff");
+  if (!args) return null;
+  const path = args.new_file_path ?? args.old_file_path;
+  const { new_file_contents: contents, tab_name: tabName } = args;
+  if (typeof path !== "string" || typeof contents !== "string" || typeof tabName !== "string") return null;
+  return { path, contents, tabName };
+}
+
+/** The diff a close_tab call closes, or null for any other message. */
+export function closedTab(message: RpcMessage): string | null {
+  const args = toolCall(message, "close_tab");
+  return typeof args?.tab_name === "string" ? args.tab_name : null;
 }
 
 /** The reply to a request, or null for a notification, which gets none. */

@@ -241,3 +241,98 @@
   font-size: var(--font-ui-smaller);
   font-variant-numeric: tabular-nums;
 }
+
+/* An edit Claude Code proposes, shown while it waits for approval in the terminal. */
+.terminal-pane-diff.view-content {
+  display: flex;
+  flex-direction: column;
+  gap: var(--size-4-2);
+}
+
+.terminal-pane-diff-header {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: var(--size-4-2);
+}
+
+.terminal-pane-diff-path {
+  font-weight: var(--font-semibold);
+  overflow-wrap: anywhere;
+}
+
+.terminal-pane-diff-stats {
+  display: flex;
+  gap: var(--size-4-2);
+  font-size: var(--font-ui-small);
+  color: var(--text-muted);
+}
+
+.terminal-pane-diff-stats .is-added {
+  color: var(--color-green);
+}
+
+.terminal-pane-diff-stats .is-removed {
+  color: var(--color-red);
+}
+
+.terminal-pane-diff-note {
+  font-size: var(--font-ui-small);
+  color: var(--text-muted);
+}
+
+.terminal-pane-diff-body {
+  font-family: var(--font-monospace);
+  font-size: var(--font-ui-small);
+  border: var(--border-width) solid var(--background-modifier-border);
+  border-radius: var(--radius-s);
+  overflow-x: auto;
+}
+
+.terminal-pane-diff-line {
+  display: flex;
+  min-width: max-content;
+  line-height: 1.5;
+}
+
+.terminal-pane-diff-line.is-added {
+  background-color: rgba(var(--color-green-rgb), 0.15);
+}
+
+.terminal-pane-diff-line.is-removed {
+  background-color: rgba(var(--color-red-rgb), 0.15);
+}
+
+.terminal-pane-diff-num {
+  flex: 0 0 3.5em;
+  padding-right: var(--size-4-1);
+  text-align: right;
+  color: var(--text-faint);
+  user-select: none;
+}
+
+.terminal-pane-diff-sign {
+  flex: 0 0 1.5em;
+  text-align: center;
+  user-select: none;
+}
+
+.terminal-pane-diff-line.is-added .terminal-pane-diff-sign {
+  color: var(--color-green);
+}
+
+.terminal-pane-diff-line.is-removed .terminal-pane-diff-sign {
+  color: var(--color-red);
+}
+
+.terminal-pane-diff-text {
+  padding-right: var(--size-4-2);
+  white-space: pre;
+}
+
+.terminal-pane-diff-skipped {
+  padding: var(--size-2-1) var(--size-4-2);
+  font-family: var(--font-interface);
+  color: var(--text-faint);
+  background-color: var(--background-secondary);
+}

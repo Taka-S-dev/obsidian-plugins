@@ -21,6 +21,14 @@ const en = {
   },
   attention: "Wants your attention",
   linkHint: "Click to open · Ctrl+click to open in a new tab",
+  diff: {
+    tabTitle: (name: string) => `Claude: ${name}`,
+    empty: "No proposed edit",
+    newFile: "new file",
+    approveInTerminal: "Claude Code proposes this edit. Approve or reject it in the terminal; this tab closes when you do.",
+    noChanges: "The edit leaves the file as it is.",
+    skipped: (lines: number) => `⋯ ${lines} unchanged ${lines === 1 ? "line" : "lines"}`,
+  },
   changes: {
     title: (count: number) => `${count} ${count === 1 ? "note" : "notes"} changed by programs in the terminal`,
     created: "(new)",
@@ -121,6 +129,14 @@ const ja: Strings = {
   },
   attention: "応答があります",
   linkHint: "クリックで開く · Ctrl+クリックで新しいタブに開く",
+  diff: {
+    tabTitle: (name) => `Claude: ${name}`,
+    empty: "変更案はありません",
+    newFile: "新規ファイル",
+    approveInTerminal: "Claude Code が提案している変更です。承認か拒否はターミナルで行ってください。決めるとこのタブは閉じます。",
+    noChanges: "この変更でファイルの内容は変わりません。",
+    skipped: (lines) => `⋯ 変更のない ${lines} 行`,
+  },
   changes: {
     title: (count) => `ターミナルのプログラムが変更したノート：${count} 件`,
     created: "（新規）",

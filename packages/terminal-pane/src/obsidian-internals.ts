@@ -64,3 +64,12 @@ export function draggedVaultPaths(app: App): string[] | null {
   const paths = items.map((item) => item.path).filter((path): path is string => typeof path === "string");
   return paths.length > 0 ? paths : null;
 }
+
+/**
+ * Redraws a leaf's tab title and its view's header after the display text changed. The header
+ * keeps the text the view opened with otherwise.
+ */
+export function refreshHeader(leaf: WorkspaceLeaf): void {
+  (leaf as unknown as { updateHeader?: () => void }).updateHeader?.();
+  (leaf.view as unknown as { titleEl?: HTMLElement }).titleEl?.setText(leaf.view.getDisplayText());
+}

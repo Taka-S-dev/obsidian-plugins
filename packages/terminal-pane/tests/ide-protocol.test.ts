@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { fileUrl, lockFile, reply, selectionChanged } from "../src/ide-protocol.ts";
+import { closedTab, diffRequest, fileUrl, lockFile, reply, selectionChanged } from "../src/ide-protocol.ts";
 
 test("the lock file names the vault folder and the WebSocket transport", () => {
   assert.deepEqual(lockFile(42, "C:\\Vault", "secret", true), {
@@ -29,7 +29,7 @@ test("the tools Claude Code calls on its own answer as an editor without diagnos
   assert.deepEqual(call("close_tab"), { content: [{ type: "text", text: "TAB_CLOSED" }] });
   assert.equal((call("openDiff") as { isError?: boolean }).isError, true);
   const tools = (reply({ jsonrpc: "2.0", id: 3, method: "tools/list" }, "1")?.result as { tools: { name: string }[] }).tools;
-  assert.deepEqual(tools.map((t) => t.name), ["getDiagnostics", "close_tab", "closeAllDiffTabs"]);
+  assert.deepEqual(tools.map((t) => t.name), ["openDiff", "getDiagnostics", "close_tab", "closeAllDiffTabs"]);
 });
 
 test("selection_changed carries the file, the text and whether anything is selected", () => {
@@ -43,4 +43,13 @@ test("selection_changed carries the file, the text and whether anything is selec
 
 test("fileUrl handles POSIX paths too", () => {
   assert.equal(fileUrl("/home/u/v/a.md"), "file:///home/u/v/a.md");
+});
+
+test("openDiff and close_tab calls are read for the diff view", () => {
+  const open = { jsonrpc: "2.0", id: 9, method: "tools/call", params: { name: "openDiff", arguments: {
+    old_file_path: "C:/v/a.md", new_file_path: "C:/v/a.md", new_file_contents: "new", tab_name: "T1" } } };
+  assert.deepEqual(diffRequest(open), { path: "C:/v/a.md", contents: "new", tabName: "T1" });
+  assert.equal(diffRequest({ jsonrpc: "2.0", method: "tools/call", params: { name: "openDiff", arguments: {} } }), null);
+  assert.equal(closedTab({ jsonrpc: "2.0", id: 10, method: "tools/call", params: { name: "close_tab", arguments: { tab_name: "T1" } } }), "T1");
+  assert.equal(closedTab(open), null);
 });

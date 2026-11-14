@@ -69,7 +69,7 @@ Shift+Enter is sent as Alt+Enter (ESC, then Enter). xterm.js, which draws the te
 Claude Code started in the terminal connects to Obsidian the way it connects to VS Code, and sees which note is open and what is selected in it. Ask about "this note" or "the selected lines" without typing a path. The note last looked at stays shared while the terminal has the keyboard.
 
 - The plugin listens on a port on 127.0.0.1 and writes `~/.claude/ide/<port>.lock` with a random token; a connection without the token is refused. Programs started in the terminal get the port in `CLAUDE_CODE_SSE_PORT`, so Claude Code connects without `/ide`. The lock file is removed when the plugin unloads.
-- Claude Code also offers its edits to a connected editor as a diff. Obsidian declines, and the edit is approved in the terminal as usual.
+- When Claude Code asks to edit a file, Obsidian shows the edit as a diff in a tab next to the terminal: lines removed and added, with three unchanged lines around each change. Approve or reject it in the terminal as usual; the tab closes when you do, and the keyboard stays in the terminal meanwhile.
 - This follows how the VS Code extension talks to Claude Code, which is not a documented interface: an update to Claude Code can stop it working. Turn it off under **Share the open note with Claude Code**.
 
 ### Notifications

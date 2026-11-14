@@ -13,6 +13,8 @@ import { defaultSettings, normalizeSettings, type Settings } from "./settings.ts
 import { TerminalSettingTab } from "./settings-tab.ts";
 import { TerminalView, VIEW_TYPE } from "./view.ts";
 import { IdeBridge } from "./ide-bridge.ts";
+import type { DiffRequest } from "./ide-protocol.ts";
+import { DIFF_VIEW_TYPE, DiffView, type DiffState } from "./diff-view.ts";
 import { type LinkCandidate, toVaultPath } from "./vault-links.ts";
 
 /** This plugin's commands, whose hotkeys always reach Obsidian while a terminal has the keyboard. */
@@ -42,6 +44,9 @@ export default class TerminalPanePlugin extends Plugin implements SessionContext
     this.register(() => style.remove());
 
     this.registerView(VIEW_TYPE, (leaf) => new TerminalView(leaf, this));
+    this.registerView(DIFF_VIEW_TYPE, (leaf) => new DiffView(leaf, this.s));
+    // A diff left from before a restart: Claude Code no longer waits on it.
+    this.app.workspace.onLayoutReady(() => this.app.workspace.detachLeavesOfType(DIFF_VIEW_TYPE));
     const { commands } = this.s;
     this.addCommand({ id: "toggle", name: commands.toggle, callback: () => this.toggle() });
     this.addCommand({ id: "new-terminal", name: commands.newTerminal, callback: () => this.newTerminal(this.settings.defaultProfile) });
@@ -80,7 +85,10 @@ export default class TerminalPanePlugin extends Plugin implements SessionContext
       return;
     }
     if (this.bridge) return;
-    const bridge = new IdeBridge(this.vaultPath(), this.manifest.version);
+    const bridge = new IdeBridge(this.vaultPath(), this.manifest.version, {
+      show: (request) => void this.showDiff(request),
+      close: (tabName) => this.diffLeaf(tabName)?.detach(),
+    });
     try {
       await bridge.start();
     } catch (error) {
@@ -90,6 +98,36 @@ export default class TerminalPanePlugin extends Plugin implements SessionContext
     }
     this.bridge = bridge;
     this.shareSelection();
+  }
+
+  /**
+   * Shows an edit Claude Code proposes next to the terminal, and gives the keyboard back to the
+   * terminal, where the edit is approved or rejected.
+   */
+  private async showDiff(request: DiffRequest): Promise<void> {
+    const { workspace } = this.app;
+    const terminal = this.lastView?.leaf ?? null;
+    let leaf = this.diffLeaf(request.tabName);
+    if (!leaf) {
+      leaf = terminal && terminal.getRoot() === workspace.rootSplit
+        ? workspace.createLeafBySplit(terminal, "vertical")
+        : workspace.getLeaf("tab");
+    }
+    const root = this.vaultPath().replace(/[\\/]+$/, "");
+    const inVault = request.path.toLowerCase().startsWith(root.toLowerCase()) && /^[\\/]/.test(request.path.slice(root.length));
+    const label = inVault ? request.path.slice(root.length + 1).replace(/\\/g, "/") : request.path;
+    const state: DiffState = { tabName: request.tabName, path: request.path, label, contents: request.contents };
+    await leaf.setViewState({ type: DIFF_VIEW_TYPE, active: false, state: { ...state } });
+    await workspace.revealLeaf(leaf);
+    if (terminal) {
+      workspace.setActiveLeaf(terminal, { focus: true });
+      this.lastView?.focusActive();
+    }
+  }
+
+  private diffLeaf(tabName: string): WorkspaceLeaf | null {
+    return this.app.workspace.getLeavesOfType(DIFF_VIEW_TYPE)
+      .find((leaf) => leaf.view instanceof DiffView && leaf.view.tabName === tabName) ?? null;
   }
 
   /**
