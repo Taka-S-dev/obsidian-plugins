@@ -74,3 +74,9 @@ test("new profile ids fill the first free number", () => {
   assert.equal(newProfileId(["shell"]), "profile-1");
   assert.equal(newProfileId(["profile-1", "profile-3"]), "profile-2");
 });
+
+test("sharing the open note with Claude Code is on unless turned off", () => {
+  assert.equal(defaults.shareWithClaude, true);
+  assert.equal(normalizeSettings({ shareWithClaude: false }, defaults).shareWithClaude, false);
+  assert.equal(normalizeSettings({ shareWithClaude: "no" }, defaults).shareWithClaude, true);
+});

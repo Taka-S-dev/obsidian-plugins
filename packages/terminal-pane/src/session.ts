@@ -34,6 +34,8 @@ export interface SessionContext {
   passToObsidian(event: KeyboardEvent): boolean;
   /** Registers a running process so it is stopped when the plugin unloads; returns the undo. */
   track(process: PtyProcess): () => void;
+  /** Variables added to the environment of programs started in a terminal. */
+  programEnvironment(): Record<string, string>;
   /** Opens a vault file next to the terminal, or in a new tab. */
   openFile(path: string, newTab: boolean): void;
   /** The file a link points at, or null if no such file is in the vault. */
@@ -66,14 +68,14 @@ function isFile(path: string): boolean {
   }
 }
 
-function environment(): Record<string, string> {
+function environment(extra: Record<string, string>): Record<string, string> {
   const env: Record<string, string> = {};
   for (const [key, value] of Object.entries(process.env)) if (value !== undefined) env[key] = value;
   env.COLORTERM = "truecolor";
   // Programs start in the vault folder. Without this, cmd.exe, and with it every .cmd shim (npm's
   // call node by name), would run a node.exe or git.bat placed in the vault before the one on PATH.
   env.NoDefaultCurrentDirectoryInExePath = "1";
-  return env;
+  return { ...env, ...extra };
 }
 
 const crlf = (text: string) => text.replace(/\r?\n/g, "\r\n");
@@ -172,7 +174,7 @@ export class TerminalSession {
     if (typeof launch === "string") return this.fail(launch);
     const { cols, rows } = this.size();
     const proc = new PtyProcess(settings.nodePath, this.ctx.hostScript(), {
-      t: "spawn", ...launch, cwd: this.ctx.vaultPath(), env: environment(), cols, rows,
+      t: "spawn", ...launch, cwd: this.ctx.vaultPath(), env: environment(this.ctx.programEnvironment()), cols, rows,
       useConptyDll: settings.bundledConpty,
     }, {
       output: (data) => this.output(data),

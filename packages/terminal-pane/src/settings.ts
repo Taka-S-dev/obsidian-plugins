@@ -34,6 +34,8 @@ export interface Settings {
   shiftEnterNewline: boolean;
   /** Mark tabs whose program finished replying, and flash the taskbar button when Obsidian is in the background. */
   notifications: boolean;
+  /** Tell Claude Code started in the terminal which note is open and what is selected in it. */
+  shareWithClaude: boolean;
 }
 
 export const FONT_SIZE = { min: 8, max: 32 };
@@ -55,6 +57,7 @@ export function defaultSettings(shell: string, cmdName: string): Settings {
     obsidianCommands: [],
     shiftEnterNewline: true,
     notifications: true,
+    shareWithClaude: true,
   };
 }
 
@@ -87,6 +90,7 @@ export function normalizeSettings(raw: unknown, defaults: Settings): Settings {
       : defaults.obsidianCommands,
     shiftEnterNewline: typeof raw.shiftEnterNewline === "boolean" ? raw.shiftEnterNewline : defaults.shiftEnterNewline,
     notifications: typeof raw.notifications === "boolean" ? raw.notifications : defaults.notifications,
+    shareWithClaude: typeof raw.shareWithClaude === "boolean" ? raw.shareWithClaude : defaults.shareWithClaude,
   };
 }
 

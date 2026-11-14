@@ -86,6 +86,9 @@ const en = {
     notifications: "Mark tabs that want attention",
     notificationsDesc:
       "When a program finishes replying in a tab you are not typing in, the tab gets a blinking dot, and the taskbar button flashes if Obsidian is in the background. A reply counts as finished when output that followed Enter stops for 3 seconds, or when the program rings the bell, sends a notification or clears its taskbar progress. No sound plays.",
+    shareWithClaude: "Share the open note with Claude Code",
+    shareWithClaudeDesc:
+      "Claude Code started in the terminal connects to Obsidian as it does to VS Code, and sees which note is open and what is selected in it, so \"this note\" means the note in front of you. Applies to programs started afterwards.",
     advanced: "Advanced",
     bundledConpty: "Use the bundled ConPTY",
     bundledConptyDesc:
@@ -183,6 +186,9 @@ const ja: Strings = {
     notifications: "応答があったタブに印を付ける",
     notificationsDesc:
       "入力中でないタブでプログラムの応答が終わると、そのタブに点滅する点が付きます。Obsidian が裏にあるときはタスクバーのボタンも点滅します。Enter のあとに続いた出力が 3 秒止まったとき、またはプログラムがベルや通知を送ったり、タスクバーの進捗表示を消したりしたときに、応答が終わったとみなします。音は鳴りません。",
+    shareWithClaude: "開いているノートを Claude Code に伝える",
+    shareWithClaudeDesc:
+      "ターミナルで起動した Claude Code が、VS Code と同じように Obsidian につながり、開いているノートと選択範囲を知ります。「このノート」と言えば目の前のノートを指します。このあと起動するプログラムから反映されます。",
     advanced: "詳細",
     bundledConpty: "同梱の ConPTY を使う",
     bundledConptyDesc:

@@ -12,10 +12,14 @@ import type { SessionContext, VaultLink } from "./session.ts";
 import { defaultSettings, normalizeSettings, type Settings } from "./settings.ts";
 import { TerminalSettingTab } from "./settings-tab.ts";
 import { TerminalView, VIEW_TYPE } from "./view.ts";
+import { IdeBridge } from "./ide-bridge.ts";
 import { type LinkCandidate, toVaultPath } from "./vault-links.ts";
 
 /** This plugin's commands, whose hotkeys always reach Obsidian while a terminal has the keyboard. */
 const COMMANDS = ["toggle", "new-terminal", "next-terminal", "previous-terminal", "close-terminal", "insert-note-path", "find"];
+
+/** How long the selection must settle before Claude Code is told about it. */
+const SELECTION_DELAY_MS = 150;
 
 export default class TerminalPanePlugin extends Plugin implements SessionContext {
   settings!: Settings;
@@ -23,10 +27,16 @@ export default class TerminalPanePlugin extends Plugin implements SessionContext
   private readonly processes = new Set<PtyProcess>();
   private profileCommands: string[] = [];
   private lastView: TerminalView | null = null;
+  private bridge: IdeBridge | null = null;
+  private selectionTimer: number | undefined;
 
   async onload(): Promise<void> {
     this.s = stringsFor(getLanguage());
     await this.loadSettings();
+
+    // Before any terminal starts, so programs get the bridge's port in their environment.
+    await this.applyClaudeSharing();
+    this.trackSelection();
 
     const style = document.head.createEl("style", { text: xtermCss, attr: { id: "terminal-pane-xterm-css" } });
     this.register(() => style.remove());
@@ -57,6 +67,66 @@ export default class TerminalPanePlugin extends Plugin implements SessionContext
     // Views close themselves and stop their programs; this catches any left over.
     for (const proc of this.processes) proc.kill();
     this.processes.clear();
+    window.clearTimeout(this.selectionTimer);
+    this.bridge?.stop();
+    this.bridge = null;
+  }
+
+  /** Starts or stops the connection Claude Code uses to see the open note, following the setting. */
+  async applyClaudeSharing(): Promise<void> {
+    if (!this.settings.shareWithClaude) {
+      this.bridge?.stop();
+      this.bridge = null;
+      return;
+    }
+    if (this.bridge) return;
+    const bridge = new IdeBridge(this.vaultPath(), this.manifest.version);
+    try {
+      await bridge.start();
+    } catch (error) {
+      bridge.stop();
+      console.warn("Terminal Pane: could not start the Claude Code connection", error);
+      return;
+    }
+    this.bridge = bridge;
+    this.shareSelection();
+  }
+
+  /**
+   * Follows the open note and its selection. Nothing is sent while the terminal or another view
+   * without a file is in front, so Claude Code keeps the note last looked at.
+   */
+  private trackSelection(): void {
+    const schedule = () => {
+      window.clearTimeout(this.selectionTimer);
+      this.selectionTimer = window.setTimeout(() => this.shareSelection(), SELECTION_DELAY_MS);
+    };
+    this.registerDomEvent(document, "selectionchange", schedule);
+    this.registerEvent(this.app.workspace.on("active-leaf-change", schedule));
+    this.registerEvent(this.app.workspace.on("file-open", schedule));
+  }
+
+  private shareSelection(): void {
+    const bridge = this.bridge;
+    if (!bridge) return;
+    const { workspace } = this.app;
+    const active = workspace.activeEditor;
+    const file = active?.file ?? workspace.getActiveFile();
+    if (!file) return;
+    const filePath = join(this.vaultPath(), file.path);
+    const editor = active?.editor;
+    if (!editor) {
+      bridge.setSelection({ filePath, text: "", start: { line: 0, character: 0 }, end: { line: 0, character: 0 } });
+      return;
+    }
+    const { anchor, head } = editor.listSelections()[0] ?? { anchor: editor.getCursor(), head: editor.getCursor() };
+    const [from, to] = anchor.line < head.line || (anchor.line === head.line && anchor.ch <= head.ch) ? [anchor, head] : [head, anchor];
+    bridge.setSelection({
+      filePath,
+      text: editor.getSelection(),
+      start: { line: from.line, character: from.ch },
+      end: { line: to.line, character: to.ch },
+    });
   }
 
   async loadSettings(): Promise<void> {
@@ -203,6 +273,10 @@ export default class TerminalPanePlugin extends Plugin implements SessionContext
     if (exact instanceof TFile) return exact;
     if (/^[a-z]:[\\/]|^[\\/]/i.test(link.target)) return null;
     return metadataCache.getFirstLinkpathDest(normalizePath(path), "");
+  }
+
+  programEnvironment(): Record<string, string> {
+    return this.bridge?.environment() ?? {};
   }
 
   openFile(path: string, newTab: boolean): void {

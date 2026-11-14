@@ -64,6 +64,14 @@ Shift+Enter is sent as Alt+Enter (ESC, then Enter). xterm.js, which draws the te
 - Drop files or folders on the terminal to type their paths, quoted as needed: relative to the vault when dragged from Obsidian, absolute when dragged from Windows Explorer.
 - Notes that change while a program is working on what you typed, such as notes an assistant edits, are counted on a button next to **+**. Its menu lists them, newest first, marked new, renamed or deleted: click one to open it, Ctrl+click to open it in a new tab. Saves of a note you have just typed in are left out. **Clear the list** in the menu empties it.
 
+### Claude Code and the open note
+
+Claude Code started in the terminal connects to Obsidian the way it connects to VS Code, and sees which note is open and what is selected in it. Ask about "this note" or "the selected lines" without typing a path. The note last looked at stays shared while the terminal has the keyboard.
+
+- The plugin listens on a port on 127.0.0.1 and writes `~/.claude/ide/<port>.lock` with a random token; a connection without the token is refused. Programs started in the terminal get the port in `CLAUDE_CODE_SSE_PORT`, so Claude Code connects without `/ide`. The lock file is removed when the plugin unloads.
+- Claude Code also offers its edits to a connected editor as a diff. Obsidian declines, and the edit is approved in the terminal as usual.
+- This follows how the VS Code extension talks to Claude Code, which is not a documented interface: an update to Claude Code can stop it working. Turn it off under **Share the open note with Claude Code**.
+
 ### Notifications
 
 When a program finishes replying while you are not typing in its terminal, its tab gets a blinking orange dot and an orange title, and so does Obsidian's own tab for the pane, which stays in sight while another note is open. The mark stays until you switch to the terminal's tab, or click or type in it. If Obsidian is in the background, its taskbar button flashes too. No sound plays and nothing pops up.
@@ -103,6 +111,7 @@ Each profile gets its own "Open terminal" command, so a profile can have a hotke
 - **Font size** and **Font**: font names separated by commas. Use a Nerd Font, such as JetBrainsMono Nerd Font, to show the icons many terminal programs draw. Empty uses Obsidian's monospace font.
 - **Shift+Enter inserts a line break**: on by default; see [Keys](#keys).
 - **Mark tabs that want attention**: on by default; see [Notifications](#notifications).
+- **Share the open note with Claude Code**: on by default; see [Claude Code and the open note](#claude-code-and-the-open-note).
 - **Obsidian commands in the terminal**: commands whose hotkeys work while a terminal has the keyboard; see [Keys](#keys). Each shows its current hotkey.
 - **Use the bundled ConPTY**: off by default; see below.
 - **Node.js**: `node` uses the one on PATH, or enter the full path to `node.exe`.
