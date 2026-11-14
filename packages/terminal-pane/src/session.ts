@@ -10,6 +10,7 @@ import { WebglAddon } from "@xterm/addon-webgl";
 import { lstatSync } from "node:fs";
 import { release } from "node:os";
 import { isOsc777Notify, readOsc9 } from "./attention.ts";
+import type { Change } from "./changes.ts";
 import { findExecutable, launchCommand, splitCommandLine, type CommandLine } from "./command-line.ts";
 import type { Strings } from "./i18n.ts";
 import { cleanPaste, linesRun } from "./paste.ts";
@@ -38,6 +39,12 @@ export interface SessionContext {
   programEnvironment(): Record<string, string>;
   /** Opens a vault file next to the terminal, or in a new tab. */
   openFile(path: string, newTab: boolean): void;
+  /** Shows what a terminal program changed in a file, as a diff with a button to undo it. */
+  reviewChange(change: Change): void;
+  /** A text file's last known contents, while a vault event for it is being handled. */
+  textBefore(path: string): string | undefined;
+  /** Whether a file is being put back by undoing a change, so its events are not a program's. */
+  isRestoring(path: string): boolean;
   /** The file a link points at, or null if no such file is in the vault. */
   vaultLink(link: LinkCandidate): VaultLink | null;
   /** The paths of files dropped on a terminal, ready to type, or null when nothing droppable is held. */

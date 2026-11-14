@@ -1,12 +1,14 @@
-import { type Editor, FileSystemAdapter, getLanguage, normalizePath, Notice, Platform, Plugin, TFile, type WorkspaceLeaf } from "obsidian";
+import {
+  type Editor, FileSystemAdapter, getLanguage, normalizePath, Notice, Platform, Plugin, type TAbstractFile, TFile, type WorkspaceLeaf,
+} from "obsidian";
 import { lstatSync } from "node:fs";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import xtermCss from "@xterm/xterm/css/xterm.css";
 import { findExecutable, quotePath } from "./command-line.ts";
 import { matchesHotkey } from "./hotkeys.ts";
 import { stringsFor, type Strings } from "./i18n.ts";
 import { draggedVaultPaths, hotkeysFor } from "./obsidian-internals.ts";
-import { confirmPaste } from "./paste-confirm.ts";
+import { confirmAction, confirmPaste } from "./paste-confirm.ts";
 import type { PtyProcess } from "./pty-process.ts";
 import type { SessionContext, VaultLink } from "./session.ts";
 import { defaultSettings, normalizeSettings, type Settings } from "./settings.ts";
@@ -15,7 +17,9 @@ import { TerminalView, VIEW_TYPE } from "./view.ts";
 import { type AssistantBridge, type DiffViewer, IdeBridge } from "./ide-bridge.ts";
 import { CopilotBridge } from "./copilot-bridge.ts";
 import type { DiffRequest } from "./ide-protocol.ts";
-import { DIFF_VIEW_TYPE, DiffView, type DiffState } from "./diff-view.ts";
+import type { Change } from "./changes.ts";
+import { DIFF_VIEW_TYPE, DiffView, type ProposalState, type ReviewState } from "./diff-view.ts";
+import { isTextFile, TextHistory } from "./text-history.ts";
 import { type LinkCandidate, toVaultPath } from "./vault-links.ts";
 
 /** This plugin's commands, whose hotkeys always reach Obsidian while a terminal has the keyboard. */
@@ -23,6 +27,9 @@ const COMMANDS = ["toggle", "new-terminal", "next-terminal", "previous-terminal"
 
 /** How long the selection must settle before Claude Code is told about it. */
 const SELECTION_DELAY_MS = 150;
+
+/** How long vault events for a file being restored are not taken for a terminal program's change. */
+const RESTORE_GRACE_MS = 3000;
 
 export default class TerminalPanePlugin extends Plugin implements SessionContext {
   settings!: Settings;
@@ -35,6 +42,10 @@ export default class TerminalPanePlugin extends Plugin implements SessionContext
   /** How each diff on screen is approved or rejected, by the assistant's name for it. */
   private readonly diffDecisions = new Map<string, (approve: boolean) => void>();
   private selectionTimer: number | undefined;
+  /** The last known contents of the vault's text files. */
+  private readonly texts = new TextHistory();
+  /** Files being restored by undoing a change, until when. */
+  private readonly restoring = new Map<string, number>();
 
   async onload(): Promise<void> {
     this.s = stringsFor(getLanguage());
@@ -43,12 +54,17 @@ export default class TerminalPanePlugin extends Plugin implements SessionContext
     // Before any terminal starts, so programs get the connection's port in their environment.
     await this.applyAssistantConnections();
     this.trackSelection();
+    this.rememberTexts();
 
     const style = document.head.createEl("style", { text: xtermCss, attr: { id: "terminal-pane-xterm-css" } });
     this.register(() => style.remove());
 
     this.registerView(VIEW_TYPE, (leaf) => new TerminalView(leaf, this));
-    this.registerView(DIFF_VIEW_TYPE, (leaf) => new DiffView(leaf, this.s, (tabName, approve) => this.decideDiff(tabName, approve)));
+    this.registerView(DIFF_VIEW_TYPE, (leaf) => new DiffView(leaf, this.s, {
+      decide: (tabName, approve) => this.decideDiff(tabName, approve),
+      openFile: (path) => this.openFile(path, false),
+      undo: (change) => void this.undoChange(change),
+    }));
     // A diff left from before a restart: Claude Code no longer waits on it.
     this.app.workspace.onLayoutReady(() => this.app.workspace.detachLeavesOfType(DIFF_VIEW_TYPE));
     const { commands } = this.s;
@@ -137,21 +153,130 @@ export default class TerminalPanePlugin extends Plugin implements SessionContext
   private async showDiff(request: DiffRequest, assistant: string): Promise<void> {
     const { workspace } = this.app;
     const terminal = this.lastView?.leaf ?? null;
-    let leaf = this.diffLeaf(request.tabName);
-    if (!leaf) {
-      leaf = terminal && terminal.getRoot() === workspace.rootSplit
-        ? workspace.createLeafBySplit(terminal, "vertical")
-        : workspace.getLeaf("tab");
-    }
+    const leaf = this.diffLeaf(request.tabName) ?? this.leafBesideTerminal();
     const root = this.vaultPath().replace(/[\\/]+$/, "");
     const inVault = request.path.toLowerCase().startsWith(root.toLowerCase()) && /^[\\/]/.test(request.path.slice(root.length));
     const label = inVault ? request.path.slice(root.length + 1).replace(/\\/g, "/") : request.path;
-    const state: DiffState = { tabName: request.tabName, assistant, path: request.path, label, contents: request.contents };
+    const state: ProposalState = { kind: "proposal", tabName: request.tabName, assistant, path: request.path, label, contents: request.contents };
     await leaf.setViewState({ type: DIFF_VIEW_TYPE, active: false, state: { ...state } });
     await workspace.revealLeaf(leaf);
     if (terminal) {
       workspace.setActiveLeaf(terminal, { focus: true });
       this.lastView?.focusActive();
+    }
+  }
+
+  /** A new tab beside the terminal when it is in the main area, or else a new tab there. */
+  private leafBesideTerminal(): WorkspaceLeaf {
+    const { workspace } = this.app;
+    const terminal = this.lastView?.leaf ?? null;
+    return terminal && terminal.getRoot() === workspace.rootSplit
+      ? workspace.createLeafBySplit(terminal, "vertical")
+      : workspace.getLeaf("tab");
+  }
+
+  private reviewLeaves(): WorkspaceLeaf[] {
+    return this.app.workspace.getLeavesOfType(DIFF_VIEW_TYPE).filter((leaf) => leaf.view instanceof DiffView && leaf.view.isReview);
+  }
+
+  /** Shows what a terminal program changed in a file, in the one tab kept for this. */
+  reviewChange(change: Change): void {
+    void (async () => {
+      const leaf = this.reviewLeaves()[0] ?? this.leafBesideTerminal();
+      const state: ReviewState = { kind: "review", change };
+      await leaf.setViewState({ type: DIFF_VIEW_TYPE, active: true, state: { ...state } });
+      await this.app.workspace.revealLeaf(leaf);
+    })();
+  }
+
+  textBefore(path: string): string | undefined {
+    return this.texts.get(path);
+  }
+
+  isRestoring(path: string): boolean {
+    return (this.restoring.get(path) ?? 0) > Date.now();
+  }
+
+  /**
+   * Keeps the last known contents of the vault's text files, so that a change a terminal program
+   * makes can be compared with what was there before. Terminal views read them while handling the
+   * same vault event, so they are updated only after that: on a later tick.
+   */
+  private rememberTexts(): void {
+    const { vault, workspace } = this.app;
+    const remember = async (file: TAbstractFile) => {
+      if (!(file instanceof TFile) || !isTextFile(file.extension)) return;
+      try {
+        this.texts.set(file.path, await vault.read(file));
+      } catch {
+        this.texts.delete(file.path);
+      }
+    };
+    workspace.onLayoutReady(async () => {
+      for (const file of vault.getFiles()) await remember(file);
+    });
+    // Obsidian reports every file as created while it loads the vault; those are read above.
+    this.registerEvent(vault.on("create", (file) => {
+      if (workspace.layoutReady) void remember(file);
+    }));
+    this.registerEvent(vault.on("modify", (file) => void remember(file)));
+    this.registerEvent(vault.on("delete", (file) => window.setTimeout(() => this.texts.delete(file.path))));
+    this.registerEvent(vault.on("rename", (file, oldPath) => window.setTimeout(() => this.texts.rename(oldPath, file.path))));
+  }
+
+  /** Asks, then puts a file back as it was before a terminal program changed it. */
+  private async undoChange(change: Change): Promise<void> {
+    const r = this.s.review;
+    const name = basename(change.path);
+    const desc = change.kind === "created" ? r.confirmCreated
+      : change.kind === "deleted" ? r.confirmDeleted
+      : change.kind === "renamed" && change.from ? r.confirmRenamed(change.from)
+      : r.confirmModified;
+    const ok = await confirmAction(this.app, { title: r.confirmTitle(name), desc, confirm: r.confirm, cancel: r.cancel, warning: true });
+    if (!ok) return;
+    const restored = await this.restore(change);
+    new Notice(restored ? r.undone(name) : r.undoFailed(name));
+    if (!restored) return;
+    for (const leaf of this.app.workspace.getLeavesOfType(VIEW_TYPE)) {
+      if (leaf.view instanceof TerminalView) leaf.view.forgetChange(change.path);
+    }
+    for (const leaf of this.reviewLeaves()) leaf.detach();
+  }
+
+  private async restore(change: Change): Promise<boolean> {
+    const { vault, fileManager } = this.app;
+    const before = change.before;
+    if (before === undefined) return false;
+    for (const path of [change.path, change.from]) {
+      if (path) this.restoring.set(path, Date.now() + RESTORE_GRACE_MS);
+    }
+    const file = vault.getFileByPath(change.path);
+    try {
+      switch (change.kind) {
+        case "created":
+          if (file) await fileManager.trashFile(file);
+          return true;
+        case "modified":
+          if (!file) return false;
+          await vault.modify(file, before);
+          return true;
+        case "deleted": {
+          if (vault.getAbstractFileByPath(change.path)) return false;
+          const folder = change.path.split("/").slice(0, -1).join("/");
+          if (folder && !vault.getAbstractFileByPath(folder)) await vault.createFolder(folder);
+          await vault.create(change.path, before);
+          return true;
+        }
+        case "renamed":
+          if (!file || !change.from || vault.getAbstractFileByPath(change.from)) return false;
+          // Through the file manager, so links to the file follow it back.
+          await fileManager.renameFile(file, change.from);
+          if ((await vault.read(file)) !== before) await vault.modify(file, before);
+          return true;
+      }
+    } catch (error) {
+      console.warn("Terminal Pane: could not undo a change", error);
+      return false;
     }
   }
 

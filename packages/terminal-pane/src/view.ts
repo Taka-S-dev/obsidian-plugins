@@ -257,7 +257,8 @@ export class TerminalView extends ItemView {
     const { vault, workspace } = this.app;
     const working = () => this.sessions.some((session) => session.isWorking());
     const fromProgram = (file: TAbstractFile) =>
-      file instanceof TFile && working() && Date.now() - (this.typedAt.get(file.path) ?? 0) > TYPING_GRACE_MS;
+      file instanceof TFile && working() && Date.now() - (this.typedAt.get(file.path) ?? 0) > TYPING_GRACE_MS
+      && !this.ctx.isRestoring(file.path);
     this.registerEvent(workspace.on("editor-change", (_editor, info) => {
       if (info.file) this.typedAt.set(info.file.path, Date.now());
     }));
@@ -266,14 +267,19 @@ export class TerminalView extends ItemView {
       if (workspace.layoutReady && fromProgram(file)) this.changed(() => this.changes.record(file.path, "created"));
     }));
     this.registerEvent(vault.on("modify", (file) => {
-      if (fromProgram(file)) this.changed(() => this.changes.record(file.path, "modified"));
+      if (fromProgram(file)) this.changed(() => this.changes.record(file.path, "modified", this.ctx.textBefore(file.path)));
     }));
     this.registerEvent(vault.on("delete", (file) => {
-      if (fromProgram(file)) this.changed(() => this.changes.record(file.path, "deleted"));
+      if (fromProgram(file)) this.changed(() => this.changes.record(file.path, "deleted", this.ctx.textBefore(file.path)));
     }));
     this.registerEvent(vault.on("rename", (file, oldPath) => {
-      if (fromProgram(file)) this.changed(() => this.changes.rename(oldPath, file.path));
+      if (fromProgram(file)) this.changed(() => this.changes.rename(oldPath, file.path, this.ctx.textBefore(oldPath)));
     }));
+  }
+
+  /** Drops a file from the list of changes, as after its change is undone. */
+  forgetChange(path: string): void {
+    this.changed(() => this.changes.forget(path));
   }
 
   private changed(update: () => void): void {
@@ -289,18 +295,20 @@ export class TerminalView extends ItemView {
     button.querySelector(".terminal-pane-changes-count")?.setText(String(count));
     const label = this.ctx.s.changes.title(count);
     button.setAttr("aria-label", label);
-    setTooltip(button, label);
+    setTooltip(button, `${label}\n${this.ctx.s.changes.hint}`);
   }
 
-  /** The changed files, newest first: click opens one, Ctrl+click in a new tab. */
+  /** The changed files, newest first: click shows what changed, Ctrl+click opens the file. */
   private changesMenu(event: MouseEvent): void {
     const { changes: s } = this.ctx.s;
     const menu = new Menu();
     for (const change of this.changes.list()) {
       menu.addItem((item) => {
         item.setTitle(this.changeTitle(change)).setIcon(CHANGE_ICONS[change.kind]);
-        if (change.kind === "deleted") item.setDisabled(true);
-        else item.onClick((e) => this.ctx.openFile(change.path, e.ctrlKey || e.metaKey));
+        item.onClick((e) => {
+          if ((e.ctrlKey || e.metaKey) && change.kind !== "deleted") this.ctx.openFile(change.path, true);
+          else this.ctx.reviewChange(change);
+        });
       });
     }
     menu.addSeparator();
