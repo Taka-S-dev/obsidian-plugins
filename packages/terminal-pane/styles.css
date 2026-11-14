@@ -360,6 +360,17 @@
   white-space: pre;
 }
 
+/* The part of a line that differs from the line it replaces. */
+.terminal-pane-diff-line.is-added .is-changed {
+  background-color: rgba(var(--color-green-rgb), 0.35);
+  border-radius: var(--radius-s);
+}
+
+.terminal-pane-diff-line.is-removed .is-changed {
+  background-color: rgba(var(--color-red-rgb), 0.35);
+  border-radius: var(--radius-s);
+}
+
 .terminal-pane-diff-skipped {
   padding: var(--size-2-1) var(--size-4-2);
   font-family: var(--font-interface);

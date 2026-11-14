@@ -70,7 +70,7 @@ Shift+Enter is sent as Alt+Enter (ESC, then Enter). xterm.js, which draws the te
 
 Claude Code and GitHub Copilot CLI started in the terminal connect to Obsidian the way they connect to VS Code, and see which note is open and what is selected in it. Ask about "this note" or "the selected lines" without typing a path. The note last looked at stays shared while the terminal has the keyboard.
 
-- When either asks to edit a file, Obsidian shows the edit as a diff in a tab next to the terminal: lines removed and added, with three unchanged lines around each change. Approve or reject it with the buttons on the tab, or in the terminal as usual; the tab closes when you do. The keyboard stays in the terminal while the tab is open.
+- When either asks to edit a file, Obsidian shows the edit as a diff in a tab next to the terminal: lines removed and added, with three unchanged lines around each change, and within a line that was edited rather than rewritten, the words that changed marked. Approve or reject it with the buttons on the tab, or in the terminal as usual; the tab closes when you do. The keyboard stays in the terminal while the tab is open.
 - For Claude Code, the plugin listens on a port on 127.0.0.1 and writes `~/.claude/ide/<port>.lock` with a random token. Programs started in the terminal get the port in `CLAUDE_CODE_SSE_PORT`, so Claude Code connects without `/ide`.
 - For Copilot CLI, the plugin listens on a named pipe and writes a lock file to `~/.copilot/ide` with a random nonce. Copilot CLI started in the vault folder connects by itself, unless its own setting for connecting to an IDE is off.
 - A connection without the token or nonce is refused. The lock files are removed when the plugin unloads.

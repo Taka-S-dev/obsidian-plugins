@@ -191,6 +191,8 @@ export class DiffView extends ItemView {
     row.createSpan({ cls: "terminal-pane-diff-num", text: line.oldLine === undefined ? "" : String(line.oldLine) });
     row.createSpan({ cls: "terminal-pane-diff-num", text: line.newLine === undefined ? "" : String(line.newLine) });
     row.createSpan({ cls: "terminal-pane-diff-sign", text: line.kind === "added" ? "+" : line.kind === "removed" ? "−" : " " });
-    row.createSpan({ cls: "terminal-pane-diff-text", text: line.text });
+    const text = row.createSpan({ cls: "terminal-pane-diff-text" });
+    if (!line.spans) text.setText(line.text);
+    else for (const span of line.spans) text.createSpan({ text: span.text, cls: span.changed ? "is-changed" : undefined });
   }
 }

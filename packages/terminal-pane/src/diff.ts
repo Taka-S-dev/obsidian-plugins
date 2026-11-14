@@ -3,9 +3,20 @@
 
 export type LineKind = "same" | "removed" | "added";
 
+/** Part of a changed line, marked when it differs from the line it replaces. */
+export interface Span {
+  text: string;
+  changed: boolean;
+}
+
 export interface DiffLine {
   kind: LineKind;
   text: string;
+  /**
+   * For a removed or added line that replaces one on the other side, its parts, with what changed
+   * marked. Absent when the lines share too little for marking to help.
+   */
+  spans?: Span[];
   /** 1-based line numbers in the old and new text; absent on the side the line is not in. */
   oldLine?: number;
   newLine?: number;
@@ -98,9 +109,67 @@ function backtrack(trace: Int32Array[], a: string[], b: string[], last: number):
   return steps.reverse();
 }
 
+/** Words, runs of spaces, and single other characters, so Japanese is compared character by character. */
+const tokens = (line: string) =>
+  line.match(/(?:(?![\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}])[\p{L}\p{N}_])+|\s+|[\s\S]/gu) ?? [];
+
+/** Lines longer than this are not compared within, to bound the work. */
+const MAX_INLINE = 2000;
+
+/**
+ * What changed between a removed line and the line added in its place, as parts of each. Null when
+ * less than half of the shorter line is shared: the line was rewritten, and marking all of it says
+ * nothing more than the line's colour.
+ */
+export function inlineChanges(oldLine: string, newLine: string): { old: Span[]; new: Span[] } | null {
+  if (oldLine.length > MAX_INLINE || newLine.length > MAX_INLINE) return null;
+  const old: Span[] = [];
+  const now: Span[] = [];
+  const add = (spans: Span[], text: string, changed: boolean) => {
+    const last = spans[spans.length - 1];
+    if (last && last.changed === changed) last.text += text;
+    else spans.push({ text, changed });
+  };
+  let shared = 0;
+  for (const step of myers(tokens(oldLine), tokens(newLine))) {
+    if (step.kind === "same") {
+      shared += step.text.length;
+      add(old, step.text, false);
+      add(now, step.text, false);
+    } else {
+      add(step.kind === "removed" ? old : now, step.text, true);
+    }
+  }
+  const shorter = Math.min(oldLine.length, newLine.length);
+  return shared * 2 >= shorter && shorter > 0 ? { old, new: now } : null;
+}
+
+/** Marks what changed within each removed line and the added line in its place, pairing them in order. */
+function markInline(lines: DiffLine[]): void {
+  let i = 0;
+  while (i < lines.length) {
+    if (lines[i].kind !== "removed") { i++; continue; }
+    const removedStart = i;
+    while (i < lines.length && lines[i].kind === "removed") i++;
+    const addedStart = i;
+    while (i < lines.length && lines[i].kind === "added") i++;
+    const pairs = Math.min(addedStart - removedStart, i - addedStart);
+    for (let p = 0; p < pairs; p++) {
+      const removed = lines[removedStart + p];
+      const added = lines[addedStart + p];
+      const inline = inlineChanges(removed.text, added.text);
+      if (inline) {
+        removed.spans = inline.old;
+        added.spans = inline.new;
+      }
+    }
+  }
+}
+
 /** The changes with `context` unchanged lines around each, nearby changes sharing a hunk. */
 export function diff(oldText: string, newText: string, context = 3): Diff {
   const lines = diffLines(oldText, newText);
+  markInline(lines);
   const changed = lines.map((line, i) => (line.kind === "same" ? -1 : i)).filter((i) => i !== -1);
   const result: Diff = {
     hunks: [],
