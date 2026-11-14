@@ -67,3 +67,20 @@ test("a rename keeps the contents from before it; unknown contents stay absent",
   changes.forget("b.md");
   assert.deepEqual(changes.list().map((c) => c.path), ["big.md"]);
 });
+
+test("a deletion and a creation with the same contents fold into a rename", () => {
+  const changes = new ChangeList();
+  changes.record("old/a.md", "deleted", "text");
+  changes.record("new/a.md", "created");
+  assert.deepEqual(changes.deletedWith("text")?.path, "old/a.md");
+  changes.moved("old/a.md", "new/a.md");
+  assert.deepEqual(changes.list(), [{ path: "new/a.md", kind: "renamed", from: "old/a.md", before: "text" }]);
+});
+
+test("moving a file the program created keeps it new", () => {
+  const changes = new ChangeList();
+  changes.record("a.md", "created");
+  changes.record("b.md", "created");
+  changes.moved("a.md", "b.md");
+  assert.deepEqual(changes.list(), [{ path: "b.md", kind: "created", before: "" }]);
+});

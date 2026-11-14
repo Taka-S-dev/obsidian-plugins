@@ -37,6 +37,7 @@ const en = {
     deleted: "(deleted)",
     clear: "Clear the list",
     hint: "Click to see what changed · Ctrl+click to open the note",
+    brokenLinks: (count: number) => `${count} broken ${count === 1 ? "link" : "links"}`,
   },
   review: {
     tabTitle: (name: string) => `Changes: ${name}`,
@@ -54,6 +55,12 @@ const en = {
     confirmRenamed: (from: string) => `The file is renamed back to ${from}, and links to it are updated. Its contents go back to those from before the change.`,
     confirm: "Undo",
     cancel: "Cancel",
+    brokenTitle: (count: number) => `${count} ${count === 1 ? "link" : "links"} in other notes pointed here and no longer ${count === 1 ? "leads" : "lead"} anywhere:`,
+    fixLinksHint: "Update links points them at the new name, as renaming the file in Obsidian does.",
+    undoMendsLinks: "Undo change brings the file back, which mends them.",
+    fixLinks: "Update links",
+    linksFixed: (name: string) => `Updated the links to ${name}.`,
+    linksFixFailed: (name: string) => `Could not update the links to ${name}: the file has moved again, or another file has its old name.`,
   },
   find: {
     placeholder: "Find",
@@ -165,6 +172,7 @@ const ja: Strings = {
     deleted: "（削除）",
     clear: "一覧を消す",
     hint: "クリックで変更を見る · Ctrl+クリックでノートを開く",
+    brokenLinks: (count) => `リンク切れ ${count} 件`,
   },
   review: {
     tabTitle: (name) => `変更: ${name}`,
@@ -182,6 +190,12 @@ const ja: Strings = {
     confirmRenamed: (from) => `名前を ${from} に戻し、リンクも合わせて直します。内容も変更前に戻します。`,
     confirm: "元に戻す",
     cancel: "キャンセル",
+    brokenTitle: (count) => `ほかのノートからここへのリンク ${count} 件が切れています：`,
+    fixLinksHint: "「リンクを直す」で、Obsidian で名前を変えたときと同じように、リンクを新しい名前に書き換えます。",
+    undoMendsLinks: "「元に戻す」でファイルを戻すと、リンクもつながります。",
+    fixLinks: "リンクを直す",
+    linksFixed: (name) => `${name} へのリンクを直しました。`,
+    linksFixFailed: (name) => `${name} へのリンクを直せませんでした。ファイルがまた移動されたか、元の名前のファイルがあります。`,
   },
   find: {
     placeholder: "検索",

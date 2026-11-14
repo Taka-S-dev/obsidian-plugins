@@ -51,6 +51,23 @@ export class ChangeList {
     this.push({ path: to, kind: "renamed", from: earlier?.from ?? from, ...(original !== undefined ? { before: original } : {}) });
   }
 
+  /**
+   * Folds a deletion of `from` and a creation of `to` into one rename: a program moving a file
+   * reaches Obsidian as those two changes.
+   */
+  moved(from: string, to: string): void {
+    const gone = this.take(from);
+    this.take(to);
+    if (gone?.kind === "created") return this.push({ path: to, kind: "created", before: "" });
+    const original = gone?.before;
+    this.push({ path: to, kind: "renamed", from: gone?.from ?? from, ...(original !== undefined ? { before: original } : {}) });
+  }
+
+  /** The deleted file whose contents were `text`, as a candidate for where a new file came from. */
+  deletedWith(text: string): Change | undefined {
+    return this.items.find((item) => item.kind === "deleted" && item.before === text);
+  }
+
   /** Drops the entry for a path, as after its change is undone. */
   forget(path: string): void {
     this.take(path);

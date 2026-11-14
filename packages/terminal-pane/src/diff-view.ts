@@ -5,6 +5,7 @@
 import { ItemView, TFile, type ViewStateResult, type WorkspaceLeaf } from "obsidian";
 import { readFileSync } from "node:fs";
 import { basename } from "node:path";
+import { brokenLinksTo } from "./broken-links.ts";
 import type { Change } from "./changes.ts";
 import { diff, type DiffLine, type Diff as DiffResult } from "./diff.ts";
 import type { Strings } from "./i18n.ts";
@@ -38,6 +39,8 @@ export interface DiffActions {
   decide(tabName: string, approve: boolean): void;
   openFile(path: string): void;
   undo(change: Change): void;
+  /** Points links to a moved file's old path at its new one. */
+  fixLinks(change: Change): void;
 }
 
 function readState(state: unknown): DiffState | null {
@@ -80,9 +83,12 @@ export class DiffView extends ItemView {
   }
 
   async onOpen(): Promise<void> {
-    // A reviewed file that changes again is shown as it is now.
+    // A reviewed file that changes again is shown as it is now, and so are links found broken.
     this.registerEvent(this.app.vault.on("modify", (file) => {
       if (this.state?.kind === "review" && file.path === this.state.change.path) void this.render();
+    }));
+    this.registerEvent(this.app.metadataCache.on("resolved", () => {
+      if (this.state?.kind === "review") void this.render();
     }));
     await this.render();
   }
@@ -122,8 +128,23 @@ export class DiffView extends ItemView {
     const result = diff(change.before ?? now, now);
     const header = this.header(change.path, result, tag);
     const buttons = header.createDiv({ cls: "terminal-pane-diff-actions" });
+    const old = change.kind === "deleted" ? change.path : change.kind === "renamed" ? change.from : undefined;
+    const broken = old ? brokenLinksTo(old, this.app.metadataCache.unresolvedLinks) : [];
     if (change.kind !== "deleted") this.button(buttons, s.review.open, false, () => this.actions.openFile(change.path));
+    if (broken.length > 0 && change.kind === "renamed") this.button(buttons, s.review.fixLinks, true, () => this.actions.fixLinks(change));
     if (change.before !== undefined) this.button(buttons, s.review.undo, false, () => this.actions.undo(change));
+    if (broken.length > 0) {
+      const box = this.contentEl.createDiv({ cls: "terminal-pane-diff-broken" });
+      const total = broken.reduce((n, item) => n + item.count, 0);
+      box.createDiv({ cls: "terminal-pane-diff-broken-title", text: s.review.brokenTitle(total) });
+      for (const { source, count } of broken) {
+        const row = box.createDiv();
+        const link = row.createEl("a", { text: source });
+        link.addEventListener("click", () => this.actions.openFile(source));
+        if (count > 1) row.appendText(` (${count})`);
+      }
+      box.createDiv({ text: change.kind === "renamed" ? s.review.fixLinksHint : s.review.undoMendsLinks });
+    }
     const notes = [s.review.note];
     if (change.kind === "renamed" && change.from) notes.push(s.review.renamedFrom(change.from));
     if (change.before === undefined) notes.push(s.review.unknownBefore);

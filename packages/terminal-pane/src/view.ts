@@ -1,5 +1,6 @@
 // The terminal pane: a row of tabs, one TerminalSession per tab.
 import { ItemView, Menu, Scope, setIcon, setTooltip, TFile, type TAbstractFile, type ViewStateResult, type WorkspaceLeaf } from "obsidian";
+import { type BrokenLinks, brokenLinksTo, totalBroken } from "./broken-links.ts";
 import { type Change, ChangeList } from "./changes.ts";
 import { tabHeaderEl } from "./obsidian-internals.ts";
 import { type SessionContext, TerminalSession } from "./session.ts";
@@ -264,17 +265,48 @@ export class TerminalView extends ItemView {
     }));
     this.registerEvent(vault.on("create", (file) => {
       // Obsidian reports every file as created while it loads the vault.
-      if (workspace.layoutReady && fromProgram(file)) this.changed(() => this.changes.record(file.path, "created"));
+      if (!workspace.layoutReady || !fromProgram(file)) return;
+      this.changed(() => this.changes.record(file.path, "created"));
+      void this.pairWithDeleted(file as TFile);
     }));
     this.registerEvent(vault.on("modify", (file) => {
       if (fromProgram(file)) this.changed(() => this.changes.record(file.path, "modified", this.ctx.textBefore(file.path)));
     }));
     this.registerEvent(vault.on("delete", (file) => {
-      if (fromProgram(file)) this.changed(() => this.changes.record(file.path, "deleted", this.ctx.textBefore(file.path)));
+      if (!fromProgram(file)) return;
+      const before = this.ctx.textBefore(file.path);
+      this.changed(() => this.changes.record(file.path, "deleted", before));
+      // The file may already be back under another name, if the program moved it.
+      const moved = before ? this.changes.list().find((c) => c.kind === "created" && this.ctx.textBefore(c.path) === before) : undefined;
+      if (moved) this.changed(() => this.changes.moved(file.path, moved.path));
     }));
+    // Links to a deleted or moved file are found unresolved once Obsidian has indexed the change.
+    this.registerEvent(this.app.metadataCache.on("resolved", () => this.renderChanges()));
     this.registerEvent(vault.on("rename", (file, oldPath) => {
       if (fromProgram(file)) this.changed(() => this.changes.rename(oldPath, file.path, this.ctx.textBefore(oldPath)));
     }));
+  }
+
+  /**
+   * Takes a new file for a moved one when a file with the same contents was just deleted: a program
+   * moving a file reaches Obsidian as a deletion and a creation.
+   */
+  private async pairWithDeleted(file: TFile): Promise<void> {
+    let text: string;
+    try {
+      text = await this.app.vault.read(file);
+    } catch {
+      return;
+    }
+    const gone = text ? this.changes.deletedWith(text) : undefined;
+    const created = this.changes.list().some((c) => c.path === file.path && c.kind === "created");
+    if (gone && created) this.changed(() => this.changes.moved(gone.path, file.path));
+  }
+
+  /** Notes whose links pointed at a file this change deleted or moved away. */
+  private brokenLinks(change: Change): BrokenLinks[] {
+    const old = change.kind === "deleted" ? change.path : change.kind === "renamed" ? change.from : undefined;
+    return old ? brokenLinksTo(old, this.app.metadataCache.unresolvedLinks) : [];
   }
 
   /** Drops a file from the list of changes, as after its change is undone. */
@@ -293,9 +325,12 @@ export class TerminalView extends ItemView {
     const count = this.changes.size;
     button.toggleClass("is-hidden", count === 0);
     button.querySelector(".terminal-pane-changes-count")?.setText(String(count));
-    const label = this.ctx.s.changes.title(count);
+    const broken = totalBroken(this.changes.list().map((change) => this.brokenLinks(change)));
+    button.toggleClass("has-broken-links", broken > 0);
+    const s = this.ctx.s.changes;
+    const label = broken > 0 ? `${s.title(count)} · ${s.brokenLinks(broken)}` : s.title(count);
     button.setAttr("aria-label", label);
-    setTooltip(button, `${label}\n${this.ctx.s.changes.hint}`);
+    setTooltip(button, `${label}\n${s.hint}`);
   }
 
   /** The changed files, newest first: click shows what changed, Ctrl+click opens the file. */
@@ -304,7 +339,9 @@ export class TerminalView extends ItemView {
     const menu = new Menu();
     for (const change of this.changes.list()) {
       menu.addItem((item) => {
-        item.setTitle(this.changeTitle(change)).setIcon(CHANGE_ICONS[change.kind]);
+        const broken = totalBroken([this.brokenLinks(change)]);
+        const title = this.changeTitle(change);
+        item.setTitle(broken > 0 ? `${title} · ${s.brokenLinks(broken)}` : title).setIcon(broken > 0 ? "unlink" : CHANGE_ICONS[change.kind]);
         item.onClick((e) => {
           if ((e.ctrlKey || e.metaKey) && change.kind !== "deleted") this.ctx.openFile(change.path, true);
           else this.ctx.reviewChange(change);

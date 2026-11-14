@@ -64,6 +64,7 @@ export default class TerminalPanePlugin extends Plugin implements SessionContext
       decide: (tabName, approve) => this.decideDiff(tabName, approve),
       openFile: (path) => this.openFile(path, false),
       undo: (change) => void this.undoChange(change),
+      fixLinks: (change) => void this.fixLinks(change),
     }));
     // A diff left from before a restart: Claude Code no longer waits on it.
     this.app.workspace.onLayoutReady(() => this.app.workspace.detachLeavesOfType(DIFF_VIEW_TYPE));
@@ -241,6 +242,30 @@ export default class TerminalPanePlugin extends Plugin implements SessionContext
       if (leaf.view instanceof TerminalView) leaf.view.forgetChange(change.path);
     }
     for (const leaf of this.reviewLeaves()) leaf.detach();
+  }
+
+  /**
+   * Points links to a file a program moved, which still name its old path, at the new one: the
+   * file goes back to the old path unseen and is moved again the way Obsidian moves files.
+   */
+  private async fixLinks(change: Change): Promise<void> {
+    const { vault, fileManager } = this.app;
+    const r = this.s.review;
+    const name = basename(change.path);
+    const file = vault.getFileByPath(change.path);
+    if (!file || !change.from || vault.getAbstractFileByPath(change.from)) {
+      new Notice(r.linksFixFailed(name));
+      return;
+    }
+    for (const path of [change.path, change.from]) this.restoring.set(path, Date.now() + RESTORE_GRACE_MS);
+    try {
+      await vault.rename(file, change.from);
+      await fileManager.renameFile(file, change.path);
+      new Notice(r.linksFixed(name));
+    } catch (error) {
+      console.warn("Terminal Pane: could not update links", error);
+      new Notice(r.linksFixFailed(name));
+    }
   }
 
   private async restore(change: Change): Promise<boolean> {
