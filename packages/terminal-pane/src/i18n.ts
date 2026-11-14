@@ -11,6 +11,8 @@ const en = {
     close: "Close terminal tab",
     insertNotePath: "Insert the current note's path into the terminal",
     sendSelection: "Send selection to the terminal",
+    attachNote: "Attach the current note to Claude Code or Copilot CLI",
+    attachToAssistant: "Attach to Claude Code / Copilot CLI",
     find: "Find in terminal",
   },
   tabs: {
@@ -38,6 +40,12 @@ const en = {
     clear: "Clear the list",
     hint: "Click to see what changed · Ctrl+click to open the note",
     brokenLinks: (count: number) => `${count} broken ${count === 1 ? "link" : "links"}`,
+  },
+  assistants: {
+    connected: (names: string) => `Connected: ${names}`,
+    sharing: (note: string) => `They see the open note: ${note}`,
+    none: "Neither Claude Code nor Copilot CLI is connected. Start one in the terminal first.",
+    noNote: "No note is open.",
   },
   review: {
     tabTitle: (name: string) => `Changes: ${name}`,
@@ -146,6 +154,8 @@ const ja: Strings = {
     close: "ターミナルタブを閉じる",
     insertNotePath: "現在のノートのパスをターミナルに入力",
     sendSelection: "選択範囲をターミナルに送る",
+    attachNote: "現在のノートを Claude Code・Copilot CLI に添付",
+    attachToAssistant: "Claude Code・Copilot CLI に添付",
     find: "ターミナル内を検索",
   },
   tabs: {
@@ -173,6 +183,12 @@ const ja: Strings = {
     clear: "一覧を消す",
     hint: "クリックで変更を見る · Ctrl+クリックでノートを開く",
     brokenLinks: (count) => `リンク切れ ${count} 件`,
+  },
+  assistants: {
+    connected: (names) => `つながっています：${names}`,
+    sharing: (note) => `伝えているノート：${note}`,
+    none: "Claude Code も Copilot CLI もつながっていません。先にターミナルで起動してください。",
+    noNote: "開いているノートがありません。",
   },
   review: {
     tabTitle: (name) => `変更: ${name}`,

@@ -233,6 +233,30 @@
   color: var(--color-accent);
 }
 
+/* Which assistants are connected; shown only while one is. */
+.terminal-pane-assistants {
+  display: flex;
+  align-items: center;
+  gap: var(--size-2-1);
+  padding: 0 var(--size-4-1);
+  font-size: var(--font-ui-smaller);
+  color: var(--text-muted);
+}
+
+.terminal-pane-assistants.is-hidden {
+  display: none;
+}
+
+.terminal-pane-assistants-icon {
+  display: flex;
+  color: var(--color-green);
+}
+
+.terminal-pane-assistants-icon svg {
+  width: var(--icon-xs);
+  height: var(--icon-xs);
+}
+
 .terminal-pane-changes.has-broken-links {
   color: var(--text-warning);
 }

@@ -47,6 +47,22 @@ export function selectionChanged(selection: EditorSelection): RpcMessage {
   };
 }
 
+/** A file, or lines of it, to add to the prompt being typed. Lines are 0-based. */
+export interface Mention {
+  filePath: string;
+  lines?: { start: number; end: number };
+}
+
+/** Asks Claude Code to add a file to the prompt being typed, as @path or @path#L1-2. */
+export function atMentioned(mention: Mention): RpcMessage {
+  const { filePath, lines } = mention;
+  return {
+    jsonrpc: "2.0",
+    method: "at_mentioned",
+    params: lines ? { filePath, lineStart: lines.start, lineEnd: lines.end } : { filePath },
+  };
+}
+
 /** file:///C:/a/b.md for C:\a\b.md, with each path segment percent-encoded. */
 export function fileUrl(path: string): string {
   const slashed = path.replace(/\\/g, "/");

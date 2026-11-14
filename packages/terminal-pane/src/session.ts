@@ -43,6 +43,8 @@ export interface SessionContext {
   reviewChange(change: Change): void;
   /** A text file's last known contents, while a vault event for it is being handled. */
   textBefore(path: string): string | undefined;
+  /** The assistants with a session connected now, and the note they are told is open. */
+  assistants(): { names: string[]; note: string | null };
   /** Whether a file is being put back by undoing a change, so its events are not a program's. */
   isRestoring(path: string): boolean;
   /** The file a link points at, or null if no such file is in the vault. */

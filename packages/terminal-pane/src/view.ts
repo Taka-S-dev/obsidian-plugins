@@ -53,6 +53,7 @@ export class TerminalView extends ItemView {
   private findCount: HTMLElement | null = null;
   private readonly changes = new ChangeList();
   private changesButton: HTMLElement | null = null;
+  private assistantsEl: HTMLElement | null = null;
   /** When each note was last typed in, so the editor's own saves are not taken for a program's. */
   private readonly typedAt = new Map<string, number>();
   /** Set once the first tabs exist, from the saved state or, failing that, the default profile. */
@@ -96,6 +97,10 @@ export class TerminalView extends ItemView {
     const bar = this.contentEl.createDiv({ cls: "terminal-pane-bar" });
     this.tabsEl = bar.createDiv({ cls: "terminal-pane-tabs", attr: { role: "tablist" } });
     const actions = bar.createDiv({ cls: "terminal-pane-actions" });
+    this.assistantsEl = actions.createDiv({ cls: "terminal-pane-assistants" });
+    setIcon(this.assistantsEl.createSpan({ cls: "terminal-pane-assistants-icon" }), "plug-zap");
+    this.assistantsEl.createSpan({ cls: "terminal-pane-assistants-names" });
+    this.renderAssistants();
     this.changesButton = this.button(actions, "file-diff", "", (event) => this.changesMenu(event));
     this.changesButton.addClass("terminal-pane-changes");
     this.changesButton.createSpan({ cls: "terminal-pane-changes-count" });
@@ -307,6 +312,20 @@ export class TerminalView extends ItemView {
   private brokenLinks(change: Change): BrokenLinks[] {
     const old = change.kind === "deleted" ? change.path : change.kind === "renamed" ? change.from : undefined;
     return old ? brokenLinksTo(old, this.app.metadataCache.unresolvedLinks) : [];
+  }
+
+  /** Shows which assistants are connected and which note they are told is open; hidden when none is. */
+  renderAssistants(): void {
+    const el = this.assistantsEl;
+    if (!el) return;
+    const { names, note } = this.ctx.assistants();
+    el.toggleClass("is-hidden", names.length === 0);
+    if (names.length === 0) return;
+    const s = this.ctx.s.assistants;
+    el.querySelector(".terminal-pane-assistants-names")?.setText(names.map((name) => name.split(" ")[0]).join(" · "));
+    const label = note ? `${s.connected(names.join(", "))}\n${s.sharing(note)}` : s.connected(names.join(", "));
+    el.setAttr("aria-label", label);
+    setTooltip(el, label);
   }
 
   /** Drops a file from the list of changes, as after its change is undone. */

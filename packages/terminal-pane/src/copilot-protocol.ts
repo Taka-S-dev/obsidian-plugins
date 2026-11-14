@@ -1,7 +1,7 @@
 // The messages GitHub Copilot CLI exchanges with an editor it is connected to, as the VS Code
 // extension does: MCP over HTTP on a named pipe, found through a lock file in ~/.copilot/ide.
 // Pure module (no Obsidian or Node imports) so it is testable.
-import type { DiffRequest, RpcMessage } from "./ide-protocol.ts";
+import { type DiffRequest, fileUrl, type Mention, type RpcMessage } from "./ide-protocol.ts";
 
 export interface CopilotLock {
   socketPath: string;
@@ -71,6 +71,21 @@ export function copilotDiffRequest(message: RpcMessage): DiffRequest | null {
   const { original_file_path: path, new_file_contents: contents, tab_name: tabName } = args;
   if (typeof path !== "string" || typeof contents !== "string" || typeof tabName !== "string") return null;
   return { path, contents, tabName };
+}
+
+/** Asks Copilot CLI to add a file, or lines of it, to the prompt being typed, as @path or @path:1-2. */
+export function fileReference(mention: Mention): RpcMessage {
+  const { filePath, lines } = mention;
+  return {
+    jsonrpc: "2.0",
+    method: "add_file_reference",
+    params: {
+      filePath,
+      fileUrl: fileUrl(filePath),
+      selection: lines ? { start: { line: lines.start, character: 0 }, end: { line: lines.end, character: 0 } } : null,
+      selectedText: null,
+    },
+  };
 }
 
 /** The diff a close_diff call closes, or null for any other message. */

@@ -23,7 +23,7 @@ import { isTextFile, TextHistory } from "./text-history.ts";
 import { type LinkCandidate, toVaultPath } from "./vault-links.ts";
 
 /** This plugin's commands, whose hotkeys always reach Obsidian while a terminal has the keyboard. */
-const COMMANDS = ["toggle", "new-terminal", "next-terminal", "previous-terminal", "close-terminal", "insert-note-path", "find"];
+const COMMANDS = ["toggle", "new-terminal", "next-terminal", "previous-terminal", "close-terminal", "insert-note-path", "find", "attach-note"];
 
 /** How long the selection must settle before Claude Code is told about it. */
 const SELECTION_DELAY_MS = 150;
@@ -44,6 +44,8 @@ export default class TerminalPanePlugin extends Plugin implements SessionContext
   private selectionTimer: number | undefined;
   /** The last known contents of the vault's text files. */
   private readonly texts = new TextHistory();
+  /** The vault path of the note last shared with the assistants. */
+  private sharedNote: string | null = null;
   /** Files being restored by undoing a change, until when. */
   private readonly restoring = new Map<string, number>();
 
@@ -77,9 +79,17 @@ export default class TerminalPanePlugin extends Plugin implements SessionContext
     this.addCommand({ id: "find", name: commands.find, callback: () => this.find() });
     this.addCommand({ id: "insert-note-path", name: commands.insertNotePath, callback: () => this.insertNotePath() });
     this.addCommand({ id: "send-selection", name: commands.sendSelection, editorCallback: (editor) => this.sendSelection(editor) });
-    this.registerEvent(this.app.workspace.on("editor-menu", (menu, editor) => {
+    this.addCommand({ id: "attach-note", name: commands.attachNote, callback: () => this.attachNote() });
+    this.registerEvent(this.app.workspace.on("editor-menu", (menu, editor, info) => {
+      if (this.connectedBridges().length > 0 && info.file) {
+        menu.addItem((item) => item.setTitle(commands.attachToAssistant).setIcon("at-sign").onClick(() => this.attach(info.file!, editor)));
+      }
       if (!editor.somethingSelected()) return;
       menu.addItem((item) => item.setTitle(commands.sendSelection).setIcon("square-terminal").onClick(() => this.sendSelection(editor)));
+    }));
+    this.registerEvent(this.app.workspace.on("file-menu", (menu, file) => {
+      if (!(file instanceof TFile) || this.connectedBridges().length === 0) return;
+      menu.addItem((item) => item.setTitle(commands.attachToAssistant).setIcon("at-sign").onClick(() => this.attach(file)));
     }));
     this.registerProfileCommands();
     this.addSettingTab(new TerminalSettingTab(this.app, this));
@@ -114,17 +124,18 @@ export default class TerminalPanePlugin extends Plugin implements SessionContext
         this.diffLeaf(tabName)?.detach();
       },
     };
-    const candidates: [string, AssistantBridge][] = [
-      ["Claude Code", new IdeBridge(this.vaultPath(), this.manifest.version, viewer)],
-      ["Copilot CLI", new CopilotBridge(this.vaultPath(), this.manifest.version, viewer)],
+    const changed = () => this.renderAssistants();
+    const candidates: AssistantBridge[] = [
+      new IdeBridge(this.vaultPath(), this.manifest.version, viewer, changed),
+      new CopilotBridge(this.vaultPath(), this.manifest.version, viewer, changed),
     ];
-    for (const [name, bridge] of candidates) {
+    for (const bridge of candidates) {
       try {
         await bridge.start();
         this.bridges.push(bridge);
       } catch (error) {
         bridge.stop();
-        console.warn(`Terminal Pane: could not start the ${name} connection`, error);
+        console.warn(`Terminal Pane: could not start the ${bridge.name} connection`, error);
       }
     }
     this.shareSelection();
@@ -143,8 +154,58 @@ export default class TerminalPanePlugin extends Plugin implements SessionContext
   }
 
   private stopBridges(): void {
-    for (const bridge of this.bridges) bridge.stop();
+    const bridges = this.bridges;
     this.bridges = [];
+    for (const bridge of bridges) bridge.stop();
+    this.renderAssistants();
+  }
+
+  private connectedBridges(): AssistantBridge[] {
+    return this.bridges.filter((bridge) => bridge.connected());
+  }
+
+  /** Adds the open note, or the selected lines of it, to the prompt being typed in the terminal. */
+  private attachNote(): void {
+    const active = this.app.workspace.activeEditor;
+    const file = active?.file ?? this.app.workspace.getActiveFile();
+    if (!file) {
+      new Notice(this.s.assistants.noNote);
+      return;
+    }
+    this.attach(file, active?.editor);
+  }
+
+  /**
+   * Adds a file to the prompt of each connected assistant, as @path, with the selected lines when
+   * an editor has a selection. The keyboard goes back to the terminal to go on typing.
+   */
+  private attach(file: TFile, editor?: Editor): void {
+    const bridges = this.connectedBridges();
+    if (bridges.length === 0) {
+      new Notice(this.s.assistants.none);
+      return;
+    }
+    const filePath = join(this.vaultPath(), file.path);
+    const lines = editor?.somethingSelected()
+      ? { start: editor.getCursor("from").line, end: editor.getCursor("to").line }
+      : undefined;
+    for (const bridge of bridges) bridge.mention({ filePath, lines });
+    const terminal = this.lastView?.leaf;
+    if (terminal) {
+      this.app.workspace.setActiveLeaf(terminal, { focus: true });
+      this.lastView?.focusActive();
+    }
+  }
+
+  /** The assistants with a session connected now, and the note they are told is open. */
+  assistants(): { names: string[]; note: string | null } {
+    return { names: this.bridges.filter((bridge) => bridge.connected()).map((bridge) => bridge.name), note: this.sharedNote };
+  }
+
+  private renderAssistants(): void {
+    for (const leaf of this.app.workspace.getLeavesOfType(VIEW_TYPE)) {
+      if (leaf.view instanceof TerminalView) leaf.view.renderAssistants();
+    }
   }
 
   /**
@@ -330,6 +391,10 @@ export default class TerminalPanePlugin extends Plugin implements SessionContext
     const active = workspace.activeEditor;
     const file = active?.file ?? workspace.getActiveFile();
     if (!file) return;
+    if (this.sharedNote !== file.path) {
+      this.sharedNote = file.path;
+      this.renderAssistants();
+    }
     const filePath = join(this.vaultPath(), file.path);
     const editor = active?.editor;
     if (!editor) {

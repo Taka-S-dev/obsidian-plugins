@@ -8,7 +8,7 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import { type WebSocket, WebSocketServer } from "ws";
 import {
-  closedTab, diffDecision, type DiffRequest, diffRequest, type EditorSelection, lockFile, reply, type RpcMessage, selectionChanged,
+  atMentioned, closedTab, diffDecision, type DiffRequest, diffRequest, type EditorSelection, type Mention, lockFile, reply, type RpcMessage, selectionChanged,
 } from "./ide-protocol.ts";
 
 const TOKEN_HEADER = "x-claude-code-ide-authorization";
@@ -25,15 +25,22 @@ export interface DiffViewer {
 
 /** A connection a terminal assistant uses to see what is open in Obsidian. */
 export interface AssistantBridge {
+  /** The assistant's name, such as Claude Code. */
+  readonly name: string;
+  /** Whether a session of the assistant is connected now. */
+  connected(): boolean;
   /** Starts listening and announces the connection. Rejects if either fails. */
   start(): Promise<void>;
   stop(): void;
   /** Variables for programs started in the terminal. */
   environment(): Record<string, string>;
   setSelection(selection: EditorSelection): void;
+  /** Adds a file, or lines of it, to the prompt being typed in each connected session. */
+  mention(mention: Mention): void;
 }
 
 export class IdeBridge implements AssistantBridge {
+  readonly name = "Claude Code";
   private server: WebSocketServer | null = null;
   private lockPath: string | null = null;
   private port = 0;
@@ -47,7 +54,11 @@ export class IdeBridge implements AssistantBridge {
     private readonly workspaceFolder: string,
     private readonly version: string,
     private readonly viewer: DiffViewer,
+    /** Called when a session connects or disconnects. */
+    private readonly onConnections: () => void,
   ) {}
+
+  connected(): boolean { return this.clients.size > 0; }
 
   /** Listens on a free port on localhost and writes the lock file. Rejects if either fails. */
   start(): Promise<void> {
@@ -89,11 +100,17 @@ export class IdeBridge implements AssistantBridge {
     for (const socket of this.clients) this.send(socket, message);
   }
 
+  mention(mention: Mention): void {
+    const message = atMentioned(mention);
+    for (const socket of this.clients) this.send(socket, message);
+  }
+
   stop(): void {
     for (const tabName of this.diffs.keys()) this.viewer.close(tabName);
     this.diffs.clear();
     for (const socket of this.clients) socket.terminate();
     this.clients.clear();
+    this.onConnections();
     this.server?.close();
     this.server = null;
     this.port = 0;
@@ -119,8 +136,9 @@ export class IdeBridge implements AssistantBridge {
 
   private accept(socket: WebSocket): void {
     this.clients.add(socket);
+    this.onConnections();
     const gone = () => {
-      this.clients.delete(socket);
+      if (this.clients.delete(socket)) this.onConnections();
       for (const [tabName, diff] of this.diffs) if (diff.socket === socket) this.closeDiff(tabName);
     };
     socket.on("close", gone);

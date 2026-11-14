@@ -8,10 +8,10 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import {
-  closeDiffResult, copilotClosedDiff, copilotDiffRequest, copilotLock, copilotReply, DIFF_CLOSED_RESULT, diffDecisionResult,
+  closeDiffResult, copilotClosedDiff, copilotDiffRequest, copilotLock, copilotReply, DIFF_CLOSED_RESULT, diffDecisionResult, fileReference,
 } from "./copilot-protocol.ts";
 import type { AssistantBridge, DiffViewer } from "./ide-bridge.ts";
-import { type EditorSelection, type RpcMessage, selectionChanged } from "./ide-protocol.ts";
+import { type EditorSelection, type Mention, type RpcMessage, selectionChanged } from "./ide-protocol.ts";
 
 /** A larger request is refused: an edit to a note is far smaller. */
 const MAX_BODY = 32 * 1024 * 1024;
@@ -22,6 +22,7 @@ interface PendingDiff {
 }
 
 export class CopilotBridge implements AssistantBridge {
+  readonly name = "Copilot CLI";
   private server: Server | null = null;
   private lockPath: string | null = null;
   private readonly nonce = randomUUID();
@@ -35,7 +36,12 @@ export class CopilotBridge implements AssistantBridge {
     private readonly workspaceFolder: string,
     private readonly version: string,
     private readonly viewer: DiffViewer,
+    /** Called when a session connects or disconnects. */
+    private readonly onConnections: () => void,
   ) {}
+
+  /** A connected session keeps an event stream open. */
+  connected(): boolean { return this.streams.size > 0; }
 
   start(): Promise<void> {
     const pipe = process.platform === "win32"
@@ -68,10 +74,16 @@ export class CopilotBridge implements AssistantBridge {
     for (const stream of this.streams) this.event(stream, message);
   }
 
+  mention(mention: Mention): void {
+    const message = fileReference(mention);
+    for (const stream of this.streams) this.event(stream, message);
+  }
+
   stop(): void {
     for (const tabName of [...this.diffs.keys()]) this.endDiff(tabName);
     for (const stream of this.streams) stream.end();
     this.streams.clear();
+    this.onConnections();
     this.server?.close();
     this.server = null;
     if (this.lockPath) {
@@ -167,7 +179,10 @@ export class CopilotBridge implements AssistantBridge {
     response.writeHead(200, { "Content-Type": "text/event-stream", "Cache-Control": "no-cache", Connection: "keep-alive" });
     response.flushHeaders();
     this.streams.add(response);
-    response.on("close", () => this.streams.delete(response));
+    this.onConnections();
+    response.on("close", () => {
+      if (this.streams.delete(response)) this.onConnections();
+    });
     if (this.selection) this.event(response, selectionChanged(this.selection));
   }
 
