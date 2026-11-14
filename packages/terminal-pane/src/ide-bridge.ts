@@ -8,15 +8,18 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import { type WebSocket, WebSocketServer } from "ws";
 import {
-  closedTab, type DiffRequest, diffRequest, type EditorSelection, lockFile, reply, type RpcMessage, selectionChanged,
+  closedTab, diffDecision, type DiffRequest, diffRequest, type EditorSelection, lockFile, reply, type RpcMessage, selectionChanged,
 } from "./ide-protocol.ts";
 
 const TOKEN_HEADER = "x-claude-code-ide-authorization";
 
 /** Where proposed edits are shown. */
 export interface DiffViewer {
-  /** `assistant` names the program that proposes the edit. */
-  show(request: DiffRequest, assistant: string): void;
+  /**
+   * `assistant` names the program that proposes the edit. `decide` approves or rejects it from
+   * Obsidian; the edit can also be decided in the terminal, after which the diff is closed.
+   */
+  show(request: DiffRequest, assistant: string, decide: (approve: boolean) => void): void;
   close(tabName: string): void;
 }
 
@@ -37,8 +40,8 @@ export class IdeBridge implements AssistantBridge {
   private readonly token = randomBytes(32).toString("hex");
   private readonly clients = new Set<WebSocket>();
   private selection: RpcMessage | null = null;
-  /** Diffs on screen, by Claude Code's name for them, with the connection that asked. */
-  private readonly diffs = new Map<string, WebSocket>();
+  /** Diffs on screen, by Claude Code's name for them, with the openDiff call that asked. */
+  private readonly diffs = new Map<string, { socket: WebSocket; id: string | number; request: DiffRequest }>();
 
   constructor(
     private readonly workspaceFolder: string,
@@ -118,7 +121,7 @@ export class IdeBridge implements AssistantBridge {
     this.clients.add(socket);
     const gone = () => {
       this.clients.delete(socket);
-      for (const [tabName, owner] of this.diffs) if (owner === socket) this.closeDiff(tabName);
+      for (const [tabName, diff] of this.diffs) if (diff.socket === socket) this.closeDiff(tabName);
     };
     socket.on("close", gone);
     socket.on("error", gone);
@@ -129,24 +132,31 @@ export class IdeBridge implements AssistantBridge {
       } catch {
         return;
       }
-      // The edit is approved or rejected in the terminal, after which Claude Code closes the diff.
-      // The openDiff call is left unanswered: answering it would decide the edit from here.
+      // The openDiff call is answered only when the edit is decided in Obsidian. Decided in the
+      // terminal instead, Claude Code closes the diff with close_tab.
       const diff = diffRequest(message);
-      if (diff) {
-        this.diffs.set(diff.tabName, socket);
-        this.viewer.show(diff, "Claude Code");
+      if (diff && message.id !== undefined && message.id !== null) {
+        this.diffs.set(diff.tabName, { socket, id: message.id, request: diff });
+        this.viewer.show(diff, "Claude Code", (approve) => this.decide(diff.tabName, approve));
         return;
       }
       const closed = closedTab(message);
       if (closed !== null) this.closeDiff(closed);
       if (message.method === "tools/call" && (message.params as { name?: unknown } | undefined)?.name === "closeAllDiffTabs") {
-        for (const [tabName, owner] of this.diffs) if (owner === socket) this.closeDiff(tabName);
+        for (const [tabName, diff] of this.diffs) if (diff.socket === socket) this.closeDiff(tabName);
       }
       const response = reply(message, this.version);
       if (response) this.send(socket, response);
       // Claude Code says it is ready once it has set up the connection.
       if (message.method === "ide_connected" && this.selection) this.send(socket, this.selection);
     });
+  }
+
+  private decide(tabName: string, approve: boolean): void {
+    const diff = this.diffs.get(tabName);
+    if (!diff) return;
+    this.send(diff.socket, diffDecision(diff.id, diff.request, approve));
+    this.closeDiff(tabName);
   }
 
   private closeDiff(tabName: string): void {

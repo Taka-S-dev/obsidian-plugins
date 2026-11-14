@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
-  closeDiffResult, copilotClosedDiff, copilotDiffRequest, copilotLock, copilotReply, DIFF_CLOSED_RESULT,
+  closeDiffResult, copilotClosedDiff, copilotDiffRequest, copilotLock, copilotReply, DIFF_CLOSED_RESULT, diffDecisionResult,
 } from "../src/copilot-protocol.ts";
 
 test("the lock file names the pipe, the nonce and the vault folder", () => {
@@ -49,4 +49,16 @@ test("close_diff answers in the shape Copilot CLI checks", () => {
 test("a diff closed from the terminal is never answered as saved or rejected", () => {
   const textOf = DIFF_CLOSED_RESULT.content[0].text;
   assert.throws(() => JSON.parse(textOf));
+});
+
+test("a diff decided in Obsidian answers open_diff with SAVED or REJECTED", () => {
+  const read = (result: unknown) => JSON.parse((result as { content: { text: string }[] }).content[0].text);
+  assert.equal(read(diffDecisionResult(true)).result, "SAVED");
+  assert.equal(read(diffDecisionResult(false)).result, "REJECTED");
+  for (const approve of [true, false]) {
+    const r = read(diffDecisionResult(approve));
+    assert.equal(r.success, true);
+    assert.equal(typeof r.trigger, "string");
+    assert.equal(typeof r.message, "string");
+  }
 });

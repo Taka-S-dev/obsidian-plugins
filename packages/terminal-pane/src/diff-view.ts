@@ -1,4 +1,5 @@
-// Shows an edit Claude Code proposes as a diff, while it waits for approval in the terminal.
+// Shows an edit Claude Code or Copilot CLI proposes as a diff, with buttons to approve or reject it
+// as an alternative to the prompt in the terminal.
 import { ItemView, type ViewStateResult, type WorkspaceLeaf } from "obsidian";
 import { readFileSync } from "node:fs";
 import { basename } from "node:path";
@@ -31,7 +32,11 @@ export class DiffView extends ItemView {
   navigation = false;
   private state: DiffState | null = null;
 
-  constructor(leaf: WorkspaceLeaf, private readonly s: Strings) {
+  constructor(
+    leaf: WorkspaceLeaf,
+    private readonly s: Strings,
+    private readonly decide: (tabName: string, approve: boolean) => void,
+  ) {
     super(leaf);
   }
 
@@ -77,7 +82,12 @@ export class DiffView extends ItemView {
     stats.createSpan({ cls: "is-added", text: `+${result.added}` });
     stats.createSpan({ cls: "is-removed", text: `−${result.removed}` });
     if (before === "") stats.createSpan({ text: s.diff.newFile });
-    contentEl.createDiv({ cls: "terminal-pane-diff-note", text: s.diff.approveInTerminal(state.assistant) });
+    const actions = header.createDiv({ cls: "terminal-pane-diff-actions" });
+    const reject = actions.createEl("button", { text: s.diff.reject });
+    const approve = actions.createEl("button", { cls: "mod-cta", text: s.diff.approve });
+    reject.addEventListener("click", () => this.decide(state.tabName, false));
+    approve.addEventListener("click", () => this.decide(state.tabName, true));
+    contentEl.createDiv({ cls: "terminal-pane-diff-note", text: s.diff.decideHere(state.assistant) });
 
     const body = contentEl.createDiv({ cls: "terminal-pane-diff-body" });
     if (result.hunks.length === 0) {

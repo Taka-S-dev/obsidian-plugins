@@ -95,6 +95,16 @@ export function closeDiffResult(tabName: string, wasOpen: boolean): unknown {
  */
 export const DIFF_CLOSED_RESULT = text("Closed: the edit was decided in the terminal.");
 
+/** The answer to an open_diff call when the edit is approved or rejected in Obsidian. */
+export function diffDecisionResult(approve: boolean): unknown {
+  return text(JSON.stringify({
+    success: true,
+    result: approve ? "SAVED" : "REJECTED",
+    trigger: approve ? "approved_in_obsidian" : "rejected_in_obsidian",
+    message: approve ? "Approved in Obsidian" : "Rejected in Obsidian",
+  }));
+}
+
 /**
  * The reply to a request, or null for a notification. open_diff is not answered here: the caller
  * keeps the request open while the diff is on screen.

@@ -242,7 +242,7 @@
   font-variant-numeric: tabular-nums;
 }
 
-/* An edit Claude Code proposes, shown while it waits for approval in the terminal. */
+/* An edit Claude Code or Copilot CLI proposes, shown while it waits for approval. */
 .terminal-pane-diff.view-content {
   display: flex;
   flex-direction: column;
@@ -274,6 +274,13 @@
 
 .terminal-pane-diff-stats .is-removed {
   color: var(--color-red);
+}
+
+.terminal-pane-diff-actions {
+  display: flex;
+  gap: var(--size-4-2);
+  margin-left: auto;
+  align-self: center;
 }
 
 .terminal-pane-diff-note {

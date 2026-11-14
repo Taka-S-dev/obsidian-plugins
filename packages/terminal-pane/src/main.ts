@@ -32,6 +32,8 @@ export default class TerminalPanePlugin extends Plugin implements SessionContext
   private lastView: TerminalView | null = null;
   /** Connections for Claude Code and Copilot CLI, while the setting is on. */
   private bridges: AssistantBridge[] = [];
+  /** How each diff on screen is approved or rejected, by the assistant's name for it. */
+  private readonly diffDecisions = new Map<string, (approve: boolean) => void>();
   private selectionTimer: number | undefined;
 
   async onload(): Promise<void> {
@@ -46,7 +48,7 @@ export default class TerminalPanePlugin extends Plugin implements SessionContext
     this.register(() => style.remove());
 
     this.registerView(VIEW_TYPE, (leaf) => new TerminalView(leaf, this));
-    this.registerView(DIFF_VIEW_TYPE, (leaf) => new DiffView(leaf, this.s));
+    this.registerView(DIFF_VIEW_TYPE, (leaf) => new DiffView(leaf, this.s, (tabName, approve) => this.decideDiff(tabName, approve)));
     // A diff left from before a restart: Claude Code no longer waits on it.
     this.app.workspace.onLayoutReady(() => this.app.workspace.detachLeavesOfType(DIFF_VIEW_TYPE));
     const { commands } = this.s;
@@ -86,8 +88,14 @@ export default class TerminalPanePlugin extends Plugin implements SessionContext
     if (!this.settings.connectAssistants) return this.stopBridges();
     if (this.bridges.length > 0) return;
     const viewer: DiffViewer = {
-      show: (request, assistant) => void this.showDiff(request, assistant),
-      close: (tabName) => this.diffLeaf(tabName)?.detach(),
+      show: (request, assistant, decide) => {
+        this.diffDecisions.set(request.tabName, decide);
+        void this.showDiff(request, assistant);
+      },
+      close: (tabName) => {
+        this.diffDecisions.delete(tabName);
+        this.diffLeaf(tabName)?.detach();
+      },
     };
     const candidates: [string, AssistantBridge][] = [
       ["Claude Code", new IdeBridge(this.vaultPath(), this.manifest.version, viewer)],
@@ -105,14 +113,26 @@ export default class TerminalPanePlugin extends Plugin implements SessionContext
     this.shareSelection();
   }
 
+  /** Approves or rejects an edit from its diff tab, then gives the keyboard back to the terminal. */
+  private decideDiff(tabName: string, approve: boolean): void {
+    const decide = this.diffDecisions.get(tabName);
+    if (!decide) return;
+    decide(approve);
+    const terminal = this.lastView?.leaf;
+    if (terminal) {
+      this.app.workspace.setActiveLeaf(terminal, { focus: true });
+      this.lastView?.focusActive();
+    }
+  }
+
   private stopBridges(): void {
     for (const bridge of this.bridges) bridge.stop();
     this.bridges = [];
   }
 
   /**
-   * Shows an edit Claude Code or Copilot CLI proposes next to the terminal, and gives the keyboard back to the
-   * terminal, where the edit is approved or rejected.
+   * Shows an edit Claude Code or Copilot CLI proposes next to the terminal, and gives the keyboard
+   * back to the terminal, where the edit can be approved or rejected as well as in the diff.
    */
   private async showDiff(request: DiffRequest, assistant: string): Promise<void> {
     const { workspace } = this.app;

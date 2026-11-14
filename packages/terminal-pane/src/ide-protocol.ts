@@ -120,6 +120,17 @@ export function closedTab(message: RpcMessage): string | null {
   return typeof args?.tab_name === "string" ? args.tab_name : null;
 }
 
+/**
+ * The answer to an openDiff call when the edit is approved or rejected in Obsidian. Claude Code
+ * then dismisses its approval prompt; an approval writes the proposed contents.
+ */
+export function diffDecision(id: string | number, request: DiffRequest, approve: boolean): RpcMessage {
+  const content = approve
+    ? [{ type: "text", text: "FILE_SAVED" }, { type: "text", text: request.contents }]
+    : [{ type: "text", text: "DIFF_REJECTED" }, { type: "text", text: request.tabName }];
+  return { jsonrpc: "2.0", id, result: { content } };
+}
+
 /** The reply to a request, or null for a notification, which gets none. */
 export function reply(message: RpcMessage, version: string): RpcMessage | null {
   if (message.id === undefined || message.id === null || typeof message.method !== "string") return null;

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { closedTab, diffRequest, fileUrl, lockFile, reply, selectionChanged } from "../src/ide-protocol.ts";
+import { closedTab, diffDecision, diffRequest, fileUrl, lockFile, reply, selectionChanged } from "../src/ide-protocol.ts";
 
 test("the lock file names the vault folder and the WebSocket transport", () => {
   assert.deepEqual(lockFile(42, "C:\\Vault", "secret", true), {
@@ -52,4 +52,14 @@ test("openDiff and close_tab calls are read for the diff view", () => {
   assert.equal(diffRequest({ jsonrpc: "2.0", method: "tools/call", params: { name: "openDiff", arguments: {} } }), null);
   assert.equal(closedTab({ jsonrpc: "2.0", id: 10, method: "tools/call", params: { name: "close_tab", arguments: { tab_name: "T1" } } }), "T1");
   assert.equal(closedTab(open), null);
+});
+
+test("approving a diff in Obsidian saves the proposed contents; rejecting declines it", () => {
+  const request = { path: "C:/Vault/a.md", contents: "new text\n", tabName: "tab 1" };
+  assert.deepEqual(diffDecision(9, request, true), {
+    jsonrpc: "2.0", id: 9, result: { content: [{ type: "text", text: "FILE_SAVED" }, { type: "text", text: "new text\n" }] },
+  });
+  assert.deepEqual(diffDecision(9, request, false), {
+    jsonrpc: "2.0", id: 9, result: { content: [{ type: "text", text: "DIFF_REJECTED" }, { type: "text", text: "tab 1" }] },
+  });
 });

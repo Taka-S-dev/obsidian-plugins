@@ -8,7 +8,7 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import {
-  closeDiffResult, copilotClosedDiff, copilotDiffRequest, copilotLock, copilotReply, DIFF_CLOSED_RESULT,
+  closeDiffResult, copilotClosedDiff, copilotDiffRequest, copilotLock, copilotReply, DIFF_CLOSED_RESULT, diffDecisionResult,
 } from "./copilot-protocol.ts";
 import type { AssistantBridge, DiffViewer } from "./ide-bridge.ts";
 import { type EditorSelection, type RpcMessage, selectionChanged } from "./ide-protocol.ts";
@@ -121,7 +121,8 @@ export class CopilotBridge implements AssistantBridge {
   private receive(message: RpcMessage, response: ServerResponse): void {
     const diff = copilotDiffRequest(message);
     if (diff && message.id !== undefined && message.id !== null) {
-      // Answered when the diff closes. Copilot CLI asks for approval in the terminal meanwhile.
+      // Answered when the edit is decided in Obsidian, or when Copilot CLI closes the diff after it
+      // was decided in the terminal.
       this.endDiff(diff.tabName);
       this.diffs.set(diff.tabName, { id: message.id, response });
       response.on("close", () => {
@@ -130,7 +131,7 @@ export class CopilotBridge implements AssistantBridge {
           this.viewer.close(diff.tabName);
         }
       });
-      this.viewer.show(diff, "Copilot CLI");
+      this.viewer.show(diff, "Copilot CLI", (approve) => this.decide(diff.tabName, approve));
       return;
     }
     const closed = copilotClosedDiff(message);
@@ -146,11 +147,19 @@ export class CopilotBridge implements AssistantBridge {
 
   /** Closes a diff and answers its open_diff call without deciding the edit. */
   private endDiff(tabName: string): boolean {
+    return this.answerDiff(tabName, DIFF_CLOSED_RESULT);
+  }
+
+  private decide(tabName: string, approve: boolean): void {
+    this.answerDiff(tabName, diffDecisionResult(approve));
+  }
+
+  private answerDiff(tabName: string, result: unknown): boolean {
     const pending = this.diffs.get(tabName);
     if (!pending) return false;
     this.diffs.delete(tabName);
     this.viewer.close(tabName);
-    if (!pending.response.writableEnded) this.json(pending.response, { jsonrpc: "2.0", id: pending.id, result: DIFF_CLOSED_RESULT });
+    if (!pending.response.writableEnded) this.json(pending.response, { jsonrpc: "2.0", id: pending.id, result });
     return true;
   }
 
