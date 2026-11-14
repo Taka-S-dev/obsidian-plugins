@@ -133,7 +133,7 @@ Each profile gets its own "Open terminal" command, so a profile can have a hotke
 ## Caution
 
 - Programs run with your user account's rights, in the vault folder. A profile runs exactly what its command line says.
-- The plugin itself sends nothing over the network; programs you run in it can.
+- The plugin sends nothing to other computers. With **Share the open note with Claude Code** on, it listens on 127.0.0.1 so that Claude Code on this PC can connect, and tells it the open note and selection. Programs you run in it can use the network.
 - The installed plugin folder includes node-pty's native binaries (about 2.6 MB).
 - Provided without warranty. Use at your own risk; the author is not liable for any damage arising from its use (see [LICENSE](../../LICENSE)).
 
