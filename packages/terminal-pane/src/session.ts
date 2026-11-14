@@ -122,6 +122,7 @@ export class TerminalSession {
     // Not on focus: Obsidian gives the terminal its focus back whenever its window comes to the
     // front, which would clear the mark before it could be seen.
     this.el.addEventListener("mousedown", () => this.setAttention(false));
+    this.el.addEventListener("contextmenu", (event) => this.rightClick(event));
     this.term = term;
   }
 
@@ -365,6 +366,24 @@ export class TerminalSession {
       return false;
     }
     return true;
+  }
+
+  /**
+   * Right-click follows Windows Terminal: it copies the selection, or pastes when nothing is
+   * selected, and never opens Obsidian's menu. Programs that track the mouse (Copilot CLI, editors)
+   * already receive the click and copy or paste themselves, so they are left to it unless Shift is
+   * held, which xterm.js uses to bypass mouse tracking.
+   */
+  private rightClick(event: MouseEvent): void {
+    event.preventDefault();
+    event.stopPropagation();
+    if (this.term.modes.mouseTrackingMode !== "none" && !event.shiftKey) return;
+    if (this.term.hasSelection()) {
+      void navigator.clipboard.writeText(this.term.getSelection());
+      this.term.clearSelection();
+      return;
+    }
+    void navigator.clipboard.readText().then((text) => { if (text) this.paste(text); });
   }
 
   private size(): { cols: number; rows: number } {
