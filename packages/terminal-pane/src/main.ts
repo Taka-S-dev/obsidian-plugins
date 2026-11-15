@@ -82,6 +82,7 @@ export default class TerminalPanePlugin extends Plugin implements SessionContext
     this.addCommand({ id: "insert-note-path", name: commands.insertNotePath, callback: () => this.insertNotePath() });
     this.addCommand({ id: "send-selection", name: commands.sendSelection, editorCallback: (editor) => this.sendSelection(editor) });
     this.addCommand({ id: "attach-note", name: commands.attachNote, callback: () => this.attachNote() });
+    this.addCommand({ id: "review-changes", name: commands.reviewChanges, callback: () => this.reviewAllChanges() });
     this.registerEvent(this.app.workspace.on("editor-menu", (menu, editor, info) => {
       if (this.connectedBridges().length > 0 && info.file) {
         menu.addItem((item) => item.setTitle(commands.attachToAssistant).setIcon("at-sign").onClick(() => this.attach(info.file!, editor)));

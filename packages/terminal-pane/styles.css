@@ -420,3 +420,8 @@
 .terminal-pane-text-input {
   width: 100%;
 }
+
+/* Settings → Hide the tab row with one terminal. */
+.terminal-pane-bar.is-hidden {
+  display: none;
+}

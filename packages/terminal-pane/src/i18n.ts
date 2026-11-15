@@ -12,6 +12,7 @@ const en = {
     insertNotePath: "Insert the current note's path into the terminal",
     sendSelection: "Send selection to the terminal",
     attachNote: "Attach the current note to Claude Code or Copilot CLI",
+    reviewChanges: "See the notes changed while programs in the terminal were working",
     attachToAssistant: "Attach to Claude Code / Copilot CLI",
     find: "Find in terminal",
   },
@@ -126,6 +127,9 @@ const en = {
     locationRight: "Right sidebar",
     locationTab: "New tab",
     fontSize: "Font size",
+    hideSingleTabRow: "Hide the tab row with one terminal",
+    hideSingleTabRowDesc:
+      "While only one terminal is open, the row with its tab, the changed-notes button and the + button is hidden and the terminal gets its height; it comes back when a second terminal opens. The commands to open a terminal and to see the changed notes still work.",
     showTitleBar: "Show the title bar",
     showTitleBarDesc:
       "Obsidian's bar with back, forward, the title and the menu above a terminal opened in the main area. Turn off to give its height to the terminal; right-click the tab for the same menu.",
@@ -172,6 +176,7 @@ const ja: Strings = {
     insertNotePath: "現在のノートのパスをターミナルに入力",
     sendSelection: "選択範囲をターミナルに送る",
     attachNote: "現在のノートを Claude Code・Copilot CLI に添付",
+    reviewChanges: "ターミナルのプログラムが処理中に変わったノートを見る",
     attachToAssistant: "Claude Code・Copilot CLI に添付",
     find: "ターミナル内を検索",
   },
@@ -286,6 +291,9 @@ const ja: Strings = {
     locationRight: "右サイドバー",
     locationTab: "新しいタブ",
     fontSize: "文字の大きさ",
+    hideSingleTabRow: "ターミナルが 1 つのときはタブの列を隠す",
+    hideSingleTabRowDesc:
+      "ターミナルが 1 つだけの間は、タブ・変わったノートのボタン・＋ボタンの列を隠し、その高さの分ターミナルを広くします。2 つ目を開くと列は戻ります。ターミナルを開くコマンドと、変わったノートを見るコマンドはそのまま使えます。",
     showTitleBar: "タイトルバーを表示",
     showTitleBarDesc:
       "メインの場所に開いたターミナルの上に出る、Obsidian の帯（戻る・進む・タイトル・メニュー）。オフにすると、その高さの分ターミナルが広くなります。同じメニューはタブの右クリックで出ます。",

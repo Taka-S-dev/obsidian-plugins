@@ -41,6 +41,8 @@ export interface Settings {
   connectAssistants: boolean;
   /** Show Obsidian's title bar (back, forward, title, menu) above a terminal in the main area. */
   showTitleBar: boolean;
+  /** Hide the row of terminal tabs while only one terminal is open, as VS Code can. */
+  hideSingleTabRow: boolean;
 }
 
 export const FONT_SIZE = { min: 8, max: 32 };
@@ -64,6 +66,7 @@ export function defaultSettings(shell: string, cmdName: string): Settings {
     notifications: true,
     connectAssistants: true,
     showTitleBar: true,
+    hideSingleTabRow: false,
   };
 }
 
@@ -98,6 +101,7 @@ export function normalizeSettings(raw: unknown, defaults: Settings): Settings {
     notifications: typeof raw.notifications === "boolean" ? raw.notifications : defaults.notifications,
     connectAssistants: typeof raw.connectAssistants === "boolean" ? raw.connectAssistants : defaults.connectAssistants,
     showTitleBar: typeof raw.showTitleBar === "boolean" ? raw.showTitleBar : defaults.showTitleBar,
+    hideSingleTabRow: typeof raw.hideSingleTabRow === "boolean" ? raw.hideSingleTabRow : defaults.hideSingleTabRow,
   };
 }
 

@@ -105,6 +105,10 @@ export class TerminalSettingTab extends PluginSettingTab {
       .setValue(settings.showTitleBar)
       .onChange(async (value) => { settings.showTitleBar = value; await plugin.saveSettings(); }));
 
+    new Setting(containerEl).setName(t.hideSingleTabRow).setDesc(t.hideSingleTabRowDesc).addToggle((toggle) => toggle
+      .setValue(settings.hideSingleTabRow)
+      .onChange(async (value) => { settings.hideSingleTabRow = value; await plugin.saveSettings(); }));
+
     new Setting(containerEl).setName(t.fontFamily).setDesc(t.fontFamilyDesc).addText((text) => text
       .setPlaceholder("JetBrainsMono Nerd Font, Consolas")
       .setValue(settings.fontFamily)

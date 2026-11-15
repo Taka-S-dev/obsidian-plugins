@@ -86,3 +86,9 @@ test("the title bar shows unless turned off", () => {
   assert.equal(normalizeSettings({ showTitleBar: false }, defaults).showTitleBar, false);
   assert.equal(normalizeSettings({ showTitleBar: 1 }, defaults).showTitleBar, true);
 });
+
+test("the tab row shows with one terminal unless turned off", () => {
+  assert.equal(defaults.hideSingleTabRow, false);
+  assert.equal(normalizeSettings({ hideSingleTabRow: true }, defaults).hideSingleTabRow, true);
+  assert.equal(normalizeSettings({ hideSingleTabRow: "yes" }, defaults).hideSingleTabRow, false);
+});

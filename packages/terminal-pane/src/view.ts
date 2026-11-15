@@ -494,6 +494,8 @@ export class TerminalView extends ItemView {
     tabHeaderEl(this.leaf)?.toggleClass("terminal-pane-attention", this.sessions.some((s) => s.attention));
     const tabsEl = this.tabsEl;
     if (!tabsEl) return;
+    // With one terminal the row only repeats its name; its buttons are also commands.
+    tabsEl.parentElement?.toggleClass("is-hidden", this.ctx.settings.hideSingleTabRow && this.sessions.length <= 1);
     const { s } = this.ctx;
     tabsEl.empty();
     for (const session of this.sessions) {
