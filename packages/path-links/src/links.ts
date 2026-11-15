@@ -58,7 +58,10 @@ function webDestination(url: string): string {
 
 /** Keep the user's own Markdown, but stop a stray bracket from ending the link text. */
 function selectionLabel(text: string): string {
-  return text.replace(/(?<!\\)([[\]])/g, "\\$1");
+  const label = text.replace(/(?<!\\)([[\]])/g, "\\$1");
+  // An odd run of backslashes at the end would escape the closing "]"; one more makes it literal.
+  const trailing = /\\*$/.exec(label)![0].length;
+  return trailing % 2 === 1 ? `${label}\\` : label;
 }
 
 export interface BuiltLinks {

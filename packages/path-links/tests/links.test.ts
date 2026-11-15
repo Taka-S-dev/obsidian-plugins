@@ -70,6 +70,15 @@ test("the selection becomes the label", () => {
   assert.equal(buildLinks("C:\\x", "a [draft]").text, "[a \\[draft\\]](<file:///C:/x>)");
 });
 
+test("a selection ending in a backslash does not escape the closing bracket", () => {
+  // "[C:\](...)" would read "\]" as a literal bracket and break the link.
+  assert.equal(buildLinks("C:\\x", "C:\\").text, "[C:\\\\](<file:///C:/x>)");
+  // An already escaped backslash at the end is left alone.
+  assert.equal(buildLinks("C:\\x", "C:\\\\").text, "[C:\\\\](<file:///C:/x>)");
+  // A backslash before a bracket inside the selection escapes it, as the user wrote it.
+  assert.equal(buildLinks("C:\\x", "a\\[b").text, "[a\\[b](<file:///C:/x>)");
+});
+
 test("web URLs become autolinks, or labeled links with a selection", () => {
   assert.equal(buildLinks("https://example.com/a b?x=1").text, "<https://example.com/a%20b?x=1>");
   assert.equal(buildLinks("https://example.com/a", "資料").text, "[資料](<https://example.com/a>)");
