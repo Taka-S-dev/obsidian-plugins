@@ -125,10 +125,12 @@ export default class TerminalPanePlugin extends Plugin implements SessionContext
     const viewer: DiffViewer = {
       show: (key, request, assistant, decide) => {
         this.diffDecisions.set(key, decide);
+        this.renderAssistants();
         void this.showDiff(key, request, assistant);
       },
       close: (key) => {
         this.diffDecisions.delete(key);
+        this.renderAssistants();
         this.diffLeaf(key)?.detach();
       },
     };
@@ -163,6 +165,7 @@ export default class TerminalPanePlugin extends Plugin implements SessionContext
   private decideDiff(key: string, approve: boolean): void {
     const decide = this.diffDecisions.get(key);
     this.diffDecisions.delete(key);
+    this.renderAssistants();
     if (!decide) return;
     decide(approve);
     const terminal = this.lastView?.leaf;
@@ -216,9 +219,16 @@ export default class TerminalPanePlugin extends Plugin implements SessionContext
     }
   }
 
-  /** The assistants with a session connected now, and the note they are told is open. */
-  assistants(): { names: string[]; note: string | null } {
-    return { names: this.bridges.filter((bridge) => bridge.connected()).map((bridge) => bridge.name), note: this.sharedNote };
+  /**
+   * The assistants with a session connected now, the note they are told is open, and how many
+   * edits they are waiting to have approved.
+   */
+  assistants(): { names: string[]; note: string | null; waiting: number } {
+    return {
+      names: this.bridges.filter((bridge) => bridge.connected()).map((bridge) => bridge.name),
+      note: this.sharedNote,
+      waiting: this.diffDecisions.size,
+    };
   }
 
   private renderAssistants(): void {

@@ -333,12 +333,19 @@ export class TerminalView extends ItemView {
   renderAssistants(): void {
     const el = this.assistantsEl;
     if (!el) return;
-    const { names, note } = this.ctx.assistants();
+    const { names, note, waiting } = this.ctx.assistants();
+    // Obsidian's own tab for the pane shows it too, as when the pane's row is hidden or out of sight.
+    tabHeaderEl(this.leaf)?.toggleClass("terminal-pane-waiting", waiting > 0);
     el.toggleClass("is-hidden", names.length === 0);
+    el.toggleClass("is-waiting", waiting > 0);
     if (names.length === 0) return;
     const s = this.ctx.s.assistants;
-    el.querySelector(".terminal-pane-assistants-names")?.setText(names.map((name) => name.split(" ")[0]).join(" · "));
-    const label = note ? `${s.connected(names.join(", "))}\n${s.sharing(note)}` : s.connected(names.join(", "));
+    const short = names.map((name) => name.split(" ")[0]).join(" · ");
+    el.querySelector(".terminal-pane-assistants-names")?.setText(waiting > 0 ? s.waitingShort(waiting) : short);
+    const lines = [s.connected(names.join(", "))];
+    if (waiting > 0) lines.push(s.waiting(waiting));
+    if (note) lines.push(s.sharing(note));
+    const label = lines.join("\n");
     el.setAttr("aria-label", label);
     setTooltip(el, label);
   }

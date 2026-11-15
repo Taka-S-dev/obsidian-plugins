@@ -53,6 +53,8 @@ const en = {
   assistants: {
     connected: (names: string) => `Connected: ${names}`,
     sharing: (note: string) => `They see the open note: ${note}`,
+    waitingShort: (count: number) => (count === 1 ? "Awaiting approval" : `${count} awaiting approval`),
+    waiting: (count: number) => `${count === 1 ? "An edit is" : `${count} edits are`} waiting for approval: decide in the diff tab or the terminal.`,
     none: "Neither Claude Code nor Copilot CLI is connected. Start one in the terminal first.",
     noNote: "No note is open.",
   },
@@ -221,6 +223,8 @@ const ja: Strings = {
   assistants: {
     connected: (names) => `つながっています：${names}`,
     sharing: (note) => `伝えているノート：${note}`,
+    waitingShort: (count) => (count === 1 ? "承認待ち" : `承認待ち ${count} 件`),
+    waiting: (count) => `変更案 ${count} 件が承認を待っています。差分のタブかターミナルで決めてください。`,
     none: "Claude Code も Copilot CLI もつながっていません。先にターミナルで起動してください。",
     noNote: "開いているノートがありません。",
   },
