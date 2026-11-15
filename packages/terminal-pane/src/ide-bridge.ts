@@ -16,14 +16,25 @@ const TOKEN_HEADER = "x-claude-code-ide-authorization";
 /** When the selection goes to a newly connected Claude Code session, in ms after it says it is connected. */
 const RESEND_SELECTION_MS = [0, 1000, 3000];
 
-/** Where proposed edits are shown. */
+let diffSerial = 0;
+
+/**
+ * A key for one diff request, unique for the plugin's lifetime. The assistant's own name for a diff
+ * is only shown: two sessions could use the same one, and a stale button must not decide a newer
+ * request that reuses it.
+ */
+export function newDiffKey(): string {
+  return `diff-${++diffSerial}`;
+}
+
+/** Where proposed edits are shown, by a key from newDiffKey. */
 export interface DiffViewer {
   /**
    * `assistant` names the program that proposes the edit. `decide` approves or rejects it from
    * Obsidian; the edit can also be decided in the terminal, after which the diff is closed.
    */
-  show(request: DiffRequest, assistant: string, decide: (approve: boolean) => void): void;
-  close(tabName: string): void;
+  show(key: string, request: DiffRequest, assistant: string, decide: (approve: boolean) => void): void;
+  close(key: string): void;
 }
 
 /** A connection a terminal assistant uses to see what is open in Obsidian. */
@@ -50,16 +61,22 @@ export class IdeBridge implements AssistantBridge {
   private readonly token = randomBytes(32).toString("hex");
   private readonly clients = new Set<WebSocket>();
   private selection: RpcMessage | null = null;
-  /** Diffs on screen, by Claude Code's name for them, with the openDiff call that asked. */
+  /** Diffs on screen, by key, with the connection and openDiff call that asked. */
   private readonly diffs = new Map<string, { socket: WebSocket; id: string | number; request: DiffRequest }>();
 
-  constructor(
-    private readonly workspaceFolder: string,
-    private readonly version: string,
-    private readonly viewer: DiffViewer,
-    /** Called when a session connects or disconnects. */
-    private readonly onConnections: () => void,
-  ) {}
+  private readonly workspaceFolder: string;
+  private readonly version: string;
+  private readonly viewer: DiffViewer;
+  /** Called when a session connects or disconnects. */
+  private readonly onConnections: () => void;
+
+  // Fields are assigned here rather than declared as parameters, so tests run the file as it is.
+  constructor(workspaceFolder: string, version: string, viewer: DiffViewer, onConnections: () => void) {
+    this.workspaceFolder = workspaceFolder;
+    this.version = version;
+    this.viewer = viewer;
+    this.onConnections = onConnections;
+  }
 
   connected(): boolean { return this.clients.size > 0; }
 
@@ -109,7 +126,7 @@ export class IdeBridge implements AssistantBridge {
   }
 
   stop(): void {
-    for (const tabName of this.diffs.keys()) this.viewer.close(tabName);
+    for (const key of this.diffs.keys()) this.viewer.close(key);
     this.diffs.clear();
     for (const socket of this.clients) socket.terminate();
     this.clients.clear();
@@ -142,7 +159,7 @@ export class IdeBridge implements AssistantBridge {
     this.onConnections();
     const gone = () => {
       if (this.clients.delete(socket)) this.onConnections();
-      for (const [tabName, diff] of this.diffs) if (diff.socket === socket) this.closeDiff(tabName);
+      for (const [key, diff] of this.diffs) if (diff.socket === socket) this.closeDiff(key);
     };
     socket.on("close", gone);
     socket.on("error", gone);
@@ -157,14 +174,19 @@ export class IdeBridge implements AssistantBridge {
       // terminal instead, Claude Code closes the diff with close_tab.
       const diff = diffRequest(message);
       if (diff && message.id !== undefined && message.id !== null) {
-        this.diffs.set(diff.tabName, { socket, id: message.id, request: diff });
-        this.viewer.show(diff, "Claude Code", (approve) => this.decide(diff.tabName, approve));
+        // The same name again from the same session replaces its earlier diff.
+        const earlier = this.keyOf(socket, diff.tabName);
+        if (earlier) this.closeDiff(earlier);
+        const key = newDiffKey();
+        this.diffs.set(key, { socket, id: message.id, request: diff });
+        this.viewer.show(key, diff, "Claude Code", (approve) => this.decide(key, approve));
         return;
       }
       const closed = closedTab(message);
-      if (closed !== null) this.closeDiff(closed);
+      const closedKey = closed === null ? undefined : this.keyOf(socket, closed);
+      if (closedKey) this.closeDiff(closedKey);
       if (message.method === "tools/call" && (message.params as { name?: unknown } | undefined)?.name === "closeAllDiffTabs") {
-        for (const [tabName, diff] of this.diffs) if (diff.socket === socket) this.closeDiff(tabName);
+        for (const [key, diff] of this.diffs) if (diff.socket === socket) this.closeDiff(key);
       }
       const response = reply(message, this.version);
       if (response) this.send(socket, response);
@@ -180,15 +202,21 @@ export class IdeBridge implements AssistantBridge {
     });
   }
 
-  private decide(tabName: string, approve: boolean): void {
-    const diff = this.diffs.get(tabName);
-    if (!diff) return;
-    this.send(diff.socket, diffDecision(diff.id, diff.request, approve));
-    this.closeDiff(tabName);
+  /** The diff a session knows by this name. */
+  private keyOf(socket: WebSocket, tabName: string): string | undefined {
+    for (const [key, diff] of this.diffs) if (diff.socket === socket && diff.request.tabName === tabName) return key;
+    return undefined;
   }
 
-  private closeDiff(tabName: string): void {
-    if (this.diffs.delete(tabName)) this.viewer.close(tabName);
+  private decide(key: string, approve: boolean): void {
+    const diff = this.diffs.get(key);
+    if (!diff) return;
+    this.send(diff.socket, diffDecision(diff.id, diff.request, approve));
+    this.closeDiff(key);
+  }
+
+  private closeDiff(key: string): void {
+    if (this.diffs.delete(key)) this.viewer.close(key);
   }
 
   private send(socket: WebSocket, message: RpcMessage): void {

@@ -10,13 +10,16 @@ import { join } from "node:path";
 import {
   closeDiffResult, copilotClosedDiff, copilotDiffRequest, copilotLock, copilotReply, DIFF_CLOSED_RESULT, diffDecisionResult, fileReference,
 } from "./copilot-protocol.ts";
-import type { AssistantBridge, DiffViewer } from "./ide-bridge.ts";
+import { type AssistantBridge, type DiffViewer, newDiffKey } from "./ide-bridge.ts";
 import { type EditorSelection, type Mention, type RpcMessage, selectionChanged } from "./ide-protocol.ts";
 
 /** A larger request is refused: an edit to a note is far smaller. */
 const MAX_BODY = 32 * 1024 * 1024;
 
 interface PendingDiff {
+  /** The session that asked, from its Mcp-Session-Id header. */
+  session: string | undefined;
+  tabName: string;
   id: string | number;
   response: ServerResponse;
 }
@@ -29,7 +32,7 @@ export class CopilotBridge implements AssistantBridge {
   /** Event streams Copilot CLI keeps open for notifications such as selection_changed. */
   private readonly streams = new Set<ServerResponse>();
   private selection: EditorSelection | null = null;
-  /** open_diff calls left open while their diff is on screen, by Copilot CLI's name for the diff. */
+  /** open_diff calls left open while their diff is on screen, by key. */
   private readonly diffs = new Map<string, PendingDiff>();
 
   constructor(
@@ -80,7 +83,7 @@ export class CopilotBridge implements AssistantBridge {
   }
 
   stop(): void {
-    for (const tabName of [...this.diffs.keys()]) this.endDiff(tabName);
+    for (const key of [...this.diffs.keys()]) this.endDiff(key);
     for (const stream of this.streams) stream.end();
     this.streams.clear();
     this.onConnections();
@@ -126,29 +129,31 @@ export class CopilotBridge implements AssistantBridge {
       } catch {
         return this.status(response, 400);
       }
-      this.receive(message, response);
+      const session = request.headers["mcp-session-id"];
+      this.receive(message, response, typeof session === "string" ? session : undefined);
     });
   }
 
-  private receive(message: RpcMessage, response: ServerResponse): void {
+  private receive(message: RpcMessage, response: ServerResponse, session: string | undefined): void {
     const diff = copilotDiffRequest(message);
     if (diff && message.id !== undefined && message.id !== null) {
       // Answered when the edit is decided in Obsidian, or when Copilot CLI closes the diff after it
       // was decided in the terminal.
-      this.endDiff(diff.tabName);
-      this.diffs.set(diff.tabName, { id: message.id, response });
+      // The same name again from the same session replaces its earlier diff.
+      const earlier = this.keyOf(session, diff.tabName);
+      if (earlier) this.endDiff(earlier);
+      const key = newDiffKey();
+      this.diffs.set(key, { session, tabName: diff.tabName, id: message.id, response });
       response.on("close", () => {
-        if (this.diffs.get(diff.tabName)?.response === response) {
-          this.diffs.delete(diff.tabName);
-          this.viewer.close(diff.tabName);
-        }
+        if (this.diffs.delete(key)) this.viewer.close(key);
       });
-      this.viewer.show(diff, "Copilot CLI", (approve) => this.decide(diff.tabName, approve));
+      this.viewer.show(key, diff, "Copilot CLI", (approve) => this.decide(key, approve));
       return;
     }
     const closed = copilotClosedDiff(message);
     if (closed !== null) {
-      const wasOpen = this.endDiff(closed);
+      const key = this.keyOf(session, closed);
+      const wasOpen = key !== undefined && this.endDiff(key);
       return this.json(response, { jsonrpc: "2.0", id: message.id, result: closeDiffResult(closed, wasOpen) });
     }
     const reply = copilotReply(message, this.version, this.selection && selectionChanged(this.selection).params);
@@ -157,20 +162,26 @@ export class CopilotBridge implements AssistantBridge {
     this.json(response, reply, headers);
   }
 
+  /** The diff a session knows by this name. */
+  private keyOf(session: string | undefined, tabName: string): string | undefined {
+    for (const [key, diff] of this.diffs) if (diff.session === session && diff.tabName === tabName) return key;
+    return undefined;
+  }
+
   /** Closes a diff and answers its open_diff call without deciding the edit. */
-  private endDiff(tabName: string): boolean {
-    return this.answerDiff(tabName, DIFF_CLOSED_RESULT);
+  private endDiff(key: string): boolean {
+    return this.answerDiff(key, DIFF_CLOSED_RESULT);
   }
 
-  private decide(tabName: string, approve: boolean): void {
-    this.answerDiff(tabName, diffDecisionResult(approve));
+  private decide(key: string, approve: boolean): void {
+    this.answerDiff(key, diffDecisionResult(approve));
   }
 
-  private answerDiff(tabName: string, result: unknown): boolean {
-    const pending = this.diffs.get(tabName);
+  private answerDiff(key: string, result: unknown): boolean {
+    const pending = this.diffs.get(key);
     if (!pending) return false;
-    this.diffs.delete(tabName);
-    this.viewer.close(tabName);
+    this.diffs.delete(key);
+    this.viewer.close(key);
     if (!pending.response.writableEnded) this.json(pending.response, { jsonrpc: "2.0", id: pending.id, result });
     return true;
   }

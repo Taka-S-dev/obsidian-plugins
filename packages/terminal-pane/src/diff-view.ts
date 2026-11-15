@@ -15,8 +15,8 @@ export const DIFF_VIEW_TYPE = "terminal-pane-diff";
 
 export interface ProposalState {
   kind: "proposal";
-  /** The assistant's name for the diff. */
-  tabName: string;
+  /** The key of the diff request; see newDiffKey. */
+  key: string;
   /** The program that proposes the edit, such as Claude Code. */
   assistant: string;
   /** Absolute path of the file. */
@@ -36,7 +36,7 @@ export type DiffState = ProposalState | ReviewState;
 
 /** What the buttons in the diff do. */
 export interface DiffActions {
-  decide(tabName: string, approve: boolean): void;
+  decide(key: string, approve: boolean): void;
   openFile(path: string): void;
   undo(change: Change): void;
   /** Points links to a moved file's old path at its new one. */
@@ -46,7 +46,7 @@ export interface DiffActions {
 function readState(state: unknown): DiffState | null {
   const s = state as { kind?: unknown; change?: Partial<Change>; [key: string]: unknown } | null;
   if (s?.kind === "review") return typeof s.change?.path === "string" ? (s as unknown as ReviewState) : null;
-  return s?.kind === "proposal" && typeof s.tabName === "string" && typeof s.assistant === "string"
+  return s?.kind === "proposal" && typeof s.key === "string" && typeof s.assistant === "string"
     && typeof s.path === "string" && typeof s.label === "string" && typeof s.contents === "string"
     ? (s as unknown as ProposalState) : null;
 }
@@ -68,7 +68,7 @@ export class DiffView extends ItemView {
     return this.s.diff.tabTitle(state.assistant, basename(state.path));
   }
 
-  get tabName(): string | null { return this.state?.kind === "proposal" ? this.state.tabName : null; }
+  get diffKey(): string | null { return this.state?.kind === "proposal" ? this.state.key : null; }
   get isReview(): boolean { return this.state?.kind === "review"; }
 
   // Not saved with the layout: after a restart the assistant no longer waits on the edit, and the
@@ -111,8 +111,8 @@ export class DiffView extends ItemView {
     const result = diff(before, state.contents);
     const header = this.header(state.label, result, before === "" ? s.diff.newFile : null);
     const buttons = header.createDiv({ cls: "terminal-pane-diff-actions" });
-    this.button(buttons, s.diff.reject, false, () => this.actions.decide(state.tabName, false));
-    this.button(buttons, s.diff.approve, true, () => this.actions.decide(state.tabName, true));
+    this.button(buttons, s.diff.reject, false, () => this.actions.decide(state.key, false));
+    this.button(buttons, s.diff.approve, true, () => this.actions.decide(state.key, true));
     contentEl.createDiv({ cls: "terminal-pane-diff-note", text: s.diff.decideHere(state.assistant) });
     this.renderBody(result);
   }

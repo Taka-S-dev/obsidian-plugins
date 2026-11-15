@@ -39,7 +39,7 @@ export default class TerminalPanePlugin extends Plugin implements SessionContext
   private lastView: TerminalView | null = null;
   /** Connections for Claude Code and Copilot CLI, while the setting is on. */
   private bridges: AssistantBridge[] = [];
-  /** How each diff on screen is approved or rejected, by the assistant's name for it. */
+  /** How each diff on screen is approved or rejected, by its key. */
   private readonly diffDecisions = new Map<string, (approve: boolean) => void>();
   private selectionTimer: number | undefined;
   /** The last known contents of the vault's text files. */
@@ -63,7 +63,7 @@ export default class TerminalPanePlugin extends Plugin implements SessionContext
 
     this.registerView(VIEW_TYPE, (leaf) => new TerminalView(leaf, this));
     this.registerView(DIFF_VIEW_TYPE, (leaf) => new DiffView(leaf, this.s, {
-      decide: (tabName, approve) => this.decideDiff(tabName, approve),
+      decide: (key, approve) => this.decideDiff(key, approve),
       openFile: (path) => this.openFile(path, false),
       undo: (change) => void this.undoChange(change),
       fixLinks: (change) => void this.fixLinks(change),
@@ -115,13 +115,13 @@ export default class TerminalPanePlugin extends Plugin implements SessionContext
     if (!this.settings.connectAssistants) return this.stopBridges();
     if (this.bridges.length > 0) return;
     const viewer: DiffViewer = {
-      show: (request, assistant, decide) => {
-        this.diffDecisions.set(request.tabName, decide);
-        void this.showDiff(request, assistant);
+      show: (key, request, assistant, decide) => {
+        this.diffDecisions.set(key, decide);
+        void this.showDiff(key, request, assistant);
       },
-      close: (tabName) => {
-        this.diffDecisions.delete(tabName);
-        this.diffLeaf(tabName)?.detach();
+      close: (key) => {
+        this.diffDecisions.delete(key);
+        this.diffLeaf(key)?.detach();
       },
     };
     const changed = () => this.renderAssistants();
@@ -142,8 +142,9 @@ export default class TerminalPanePlugin extends Plugin implements SessionContext
   }
 
   /** Approves or rejects an edit from its diff tab, then gives the keyboard back to the terminal. */
-  private decideDiff(tabName: string, approve: boolean): void {
-    const decide = this.diffDecisions.get(tabName);
+  private decideDiff(key: string, approve: boolean): void {
+    const decide = this.diffDecisions.get(key);
+    this.diffDecisions.delete(key);
     if (!decide) return;
     decide(approve);
     const terminal = this.lastView?.leaf;
@@ -212,14 +213,14 @@ export default class TerminalPanePlugin extends Plugin implements SessionContext
    * Shows an edit Claude Code or Copilot CLI proposes next to the terminal, and gives the keyboard
    * back to the terminal, where the edit can be approved or rejected as well as in the diff.
    */
-  private async showDiff(request: DiffRequest, assistant: string): Promise<void> {
+  private async showDiff(key: string, request: DiffRequest, assistant: string): Promise<void> {
     const { workspace } = this.app;
     const terminal = this.lastView?.leaf ?? null;
-    const leaf = this.diffLeaf(request.tabName) ?? this.leafBesideTerminal();
+    const leaf = this.diffLeaf(key) ?? this.leafBesideTerminal();
     const root = this.vaultPath().replace(/[\\/]+$/, "");
     const inVault = request.path.toLowerCase().startsWith(root.toLowerCase()) && /^[\\/]/.test(request.path.slice(root.length));
     const label = inVault ? request.path.slice(root.length + 1).replace(/\\/g, "/") : request.path;
-    const state: ProposalState = { kind: "proposal", tabName: request.tabName, assistant, path: request.path, label, contents: request.contents };
+    const state: ProposalState = { kind: "proposal", key, assistant, path: request.path, label, contents: request.contents };
     await leaf.setViewState({ type: DIFF_VIEW_TYPE, active: false, state: { ...state } });
     await workspace.revealLeaf(leaf);
     if (terminal) {
@@ -375,9 +376,9 @@ export default class TerminalPanePlugin extends Plugin implements SessionContext
     }
   }
 
-  private diffLeaf(tabName: string): WorkspaceLeaf | null {
+  private diffLeaf(key: string): WorkspaceLeaf | null {
     return this.app.workspace.getLeavesOfType(DIFF_VIEW_TYPE)
-      .find((leaf) => leaf.view instanceof DiffView && leaf.view.tabName === tabName) ?? null;
+      .find((leaf) => leaf.view instanceof DiffView && leaf.view.diffKey === key) ?? null;
   }
 
   /**
