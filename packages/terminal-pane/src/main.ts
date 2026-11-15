@@ -11,7 +11,7 @@ import { draggedVaultPaths, hotkeysFor } from "./obsidian-internals.ts";
 import { confirmAction, confirmPaste } from "./paste-confirm.ts";
 import type { PtyProcess } from "./pty-process.ts";
 import type { SessionContext, VaultLink } from "./session.ts";
-import { defaultSettings, normalizeSettings, type Settings } from "./settings.ts";
+import { defaultSettings, FONT_SIZE, normalizeSettings, type Settings } from "./settings.ts";
 import { TerminalSettingTab } from "./settings-tab.ts";
 import { TerminalView, VIEW_TYPE } from "./view.ts";
 import { type AssistantBridge, type DiffViewer, IdeBridge } from "./ide-bridge.ts";
@@ -31,6 +31,9 @@ const COMMANDS = [
 /** How long the selection must settle before Claude Code is told about it. */
 const SELECTION_DELAY_MS = 150;
 
+/** How long the font size settles after Ctrl+wheel before it is saved. */
+const ZOOM_SAVE_DELAY_MS = 500;
+
 /** How long vault events for a file being restored are not taken for a terminal program's change. */
 const RESTORE_GRACE_MS = 3000;
 
@@ -45,6 +48,7 @@ export default class TerminalPanePlugin extends Plugin implements SessionContext
   /** How each diff on screen is approved or rejected, by its key. */
   private readonly diffDecisions = new Map<string, (approve: boolean) => void>();
   private selectionTimer: number | undefined;
+  private zoomSaveTimer: number | undefined;
   /** The last known contents of the vault's text files. */
   private readonly texts = new TextHistory();
   /** The vault path of the note last shared with the assistants. */
@@ -112,6 +116,11 @@ export default class TerminalPanePlugin extends Plugin implements SessionContext
     for (const proc of this.processes) proc.kill();
     this.processes.clear();
     window.clearTimeout(this.selectionTimer);
+    if (this.zoomSaveTimer !== undefined) {
+      // A size set with Ctrl+wheel just before unloading is not lost.
+      window.clearTimeout(this.zoomSaveTimer);
+      void this.saveData(this.settings);
+    }
     this.stopBridges();
   }
 
@@ -501,6 +510,16 @@ export default class TerminalPanePlugin extends Plugin implements SessionContext
   async loadSettings(): Promise<void> {
     const shell = this.onPath("pwsh.exe") ? "pwsh.exe" : "powershell.exe";
     this.settings = normalizeSettings(await this.loadData(), defaultSettings(shell, this.s.commandPrompt));
+  }
+
+  zoomFont(step: number): void {
+    const size = Math.min(FONT_SIZE.max, Math.max(FONT_SIZE.min, this.settings.fontSize + step));
+    if (size === this.settings.fontSize) return;
+    this.settings.fontSize = size;
+    for (const view of this.views()) view.applyAppearance();
+    // Saved once the wheel stops, not on every notch.
+    window.clearTimeout(this.zoomSaveTimer);
+    this.zoomSaveTimer = window.setTimeout(() => void this.saveData(this.settings), ZOOM_SAVE_DELAY_MS);
   }
 
   async saveSettings(): Promise<void> {

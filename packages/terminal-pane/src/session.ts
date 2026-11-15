@@ -60,6 +60,8 @@ export interface SessionContext {
   vaultLink(link: LinkCandidate): VaultLink | null;
   /** The paths of files dropped on a terminal, ready to type, or null when nothing droppable is held. */
   dropText(data: DataTransfer | null): string | null;
+  /** Makes the font of every terminal larger or smaller by `step` points, and saves it. */
+  zoomFont(step: number): void;
   /** Asks whether to paste text of this many lines into a program that would run each line. */
   confirmPaste(lines: number): Promise<boolean>;
 }
@@ -178,6 +180,13 @@ export class TerminalSession {
     // front, which would clear the mark before it could be seen.
     this.el.addEventListener("mousedown", () => this.setAttention(false));
     this.el.addEventListener("contextmenu", (event) => this.rightClick(event));
+    // Ctrl+wheel changes the font size, as in VS Code; captured before xterm scrolls with it.
+    this.el.addEventListener("wheel", (event) => {
+      if (!event.ctrlKey || event.deltaY === 0) return;
+      event.preventDefault();
+      event.stopPropagation();
+      this.ctx.zoomFont(event.deltaY < 0 ? 1 : -1);
+    }, { capture: true, passive: false });
     this.term = term;
   }
 

@@ -116,7 +116,7 @@ Each profile gets its own "Open terminal" command, so a profile can have a hotke
 - **Open terminals in**: where a new pane opens when there is none (right sidebar or a new tab). An existing pane stays where you put it.
 - **Hide the tab row with one terminal**: off by default. On, the row with the tab, the changed-notes button and **+** is hidden while only one terminal is open, and comes back with a second. Right-click the pane's tab, or use its ⋮ menu, to open a terminal or see the changed notes; the commands for them still work too.
 - **Show the title bar**: on by default. Turn off to hide Obsidian's bar with back, forward, the title and the menu above a terminal in the main area, giving its height to the terminal. Right-clicking the tab shows the same menu.
-- **Font size** and **Font**: font names separated by commas. Use a Nerd Font, such as JetBrainsMono Nerd Font, to show the icons many terminal programs draw. Empty uses Obsidian's monospace font.
+- **Font size** and **Font**: font names separated by commas. Use a Nerd Font, such as JetBrainsMono Nerd Font, to show the icons many terminal programs draw. Empty uses Obsidian's monospace font. Ctrl+wheel over a terminal also changes the size, as in VS Code.
 - **Shift+Enter inserts a line break**: on by default; see [Keys](#keys).
 - **Mark tabs that want attention**: on by default; see [Notifications](#notifications).
 - **Connect Claude Code and Copilot CLI**: on by default; see [Claude Code, Copilot CLI and the open note](#claude-code-copilot-cli-and-the-open-note).
