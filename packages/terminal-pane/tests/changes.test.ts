@@ -80,6 +80,7 @@ test("a deletion and a creation with the same contents fold into a rename", () =
 test("moving a file the program created keeps it new", () => {
   const changes = new ChangeList();
   changes.record("a.md", "created");
+  changes.record("a.md", "deleted", "text");
   changes.record("b.md", "created");
   changes.moved("a.md", "b.md");
   assert.deepEqual(changes.list(), [{ path: "b.md", kind: "created", before: "" }]);
