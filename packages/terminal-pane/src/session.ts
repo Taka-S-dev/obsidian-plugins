@@ -24,6 +24,8 @@ const HIGH_WATER = 512 * 1024;
 const LOW_WATER = 64 * 1024;
 /** After Enter, output that then stops for this long counts as a finished reply. */
 const QUIET_MS = 3000;
+/** How long a program may stay quiet after Enter or its output and still count as working. */
+const WORKING_QUIET_MS = 30_000;
 
 /** What a terminal needs from the plugin. */
 export interface SessionContext {
@@ -106,6 +108,9 @@ export class TerminalSession {
   private awaitingReply = false;
   private quietTimer: number | undefined;
   private progressBusy = false;
+  /** When the program last printed anything, and when Enter was last pressed. */
+  private lastOutputAt = 0;
+  private lastEnterAt = 0;
   private hintTimer: number | undefined;
   private hintEl: HTMLElement | null = null;
   private readonly search = new SearchAddon();
@@ -218,11 +223,14 @@ export class TerminalSession {
   focus(): void { this.term.focus(); }
 
   /**
-   * Whether the program is working on what was typed: from Enter until its output goes quiet, or
-   * while it shows taskbar progress.
+   * Whether the program may be changing files: while it shows taskbar progress, and from Enter or
+   * its latest output until it has been quiet for WORKING_QUIET_MS. This is longer than the pause
+   * that ends a reply and marks the tab, so a step that runs silently for a while, or output that
+   * resumes after a pause, still has its changes noticed.
    */
   isWorking(): boolean {
-    return this.status === "running" && (this.awaitingReply || this.progressBusy);
+    return this.status === "running"
+      && (this.progressBusy || Date.now() - Math.max(this.lastEnterAt, this.lastOutputAt) < WORKING_QUIET_MS);
   }
 
   /** Whether the terminal has the keyboard. */
@@ -386,7 +394,10 @@ export class TerminalSession {
   private input(data: string): void {
     if (this.status === "running") {
       this.proc?.write(data);
-      if (data.includes("\r")) this.awaitingReply = true;
+      if (data.includes("\r")) {
+        this.awaitingReply = true;
+        this.lastEnterAt = Date.now();
+      }
     } else if (this.status === "exited" && data === "\r") {
       this.term.reset();
       this.start();
@@ -394,6 +405,7 @@ export class TerminalSession {
   }
 
   private output(data: string): void {
+    this.lastOutputAt = Date.now();
     if (this.awaitingReply) this.waitForQuiet();
     this.unacked += data.length;
     if (!this.paused && this.unacked > HIGH_WATER) {

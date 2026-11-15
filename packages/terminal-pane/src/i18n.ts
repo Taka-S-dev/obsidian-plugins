@@ -34,7 +34,7 @@ const en = {
     skipped: (lines: number) => `⋯ ${lines} unchanged ${lines === 1 ? "line" : "lines"}`,
   },
   changes: {
-    title: (count: number) => `${count} ${count === 1 ? "note" : "notes"} changed by programs in the terminal`,
+    title: (count: number) => `${count} ${count === 1 ? "note" : "notes"} changed while programs in the terminal were working`,
     created: "(new)",
     deleted: "(deleted)",
     clear: "Clear the list",
@@ -179,7 +179,7 @@ const ja: Strings = {
     skipped: (lines) => `⋯ 変更のない ${lines} 行`,
   },
   changes: {
-    title: (count) => `ターミナルのプログラムが変更したノート：${count} 件`,
+    title: (count) => `ターミナルのプログラムが処理中に変わったノート：${count} 件`,
     created: "（新規）",
     deleted: "（削除）",
     clear: "一覧を消す",
