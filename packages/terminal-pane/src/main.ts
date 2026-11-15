@@ -23,7 +23,10 @@ import { isTextFile, TextHistory } from "./text-history.ts";
 import { type LinkCandidate, toVaultPath } from "./vault-links.ts";
 
 /** This plugin's commands, whose hotkeys always reach Obsidian while a terminal has the keyboard. */
-const COMMANDS = ["toggle", "new-terminal", "next-terminal", "previous-terminal", "close-terminal", "insert-note-path", "find", "attach-note"];
+const COMMANDS = [
+  "toggle", "new-terminal", "next-terminal", "previous-terminal", "close-terminal", "insert-note-path", "find", "attach-note",
+  "review-changes", "approve-edit", "reject-edit",
+];
 
 /** How long the selection must settle before Claude Code is told about it. */
 const SELECTION_DELAY_MS = 150;
@@ -83,6 +86,8 @@ export default class TerminalPanePlugin extends Plugin implements SessionContext
     this.addCommand({ id: "send-selection", name: commands.sendSelection, editorCallback: (editor) => this.sendSelection(editor) });
     this.addCommand({ id: "attach-note", name: commands.attachNote, callback: () => this.attachNote() });
     this.addCommand({ id: "review-changes", name: commands.reviewChanges, callback: () => this.reviewAllChanges() });
+    this.addCommand({ id: "approve-edit", name: commands.approveEdit, callback: () => this.decideLatest(true) });
+    this.addCommand({ id: "reject-edit", name: commands.rejectEdit, callback: () => this.decideLatest(false) });
     this.registerEvent(this.app.workspace.on("editor-menu", (menu, editor, info) => {
       if (this.connectedBridges().length > 0 && info.file) {
         menu.addItem((item) => item.setTitle(commands.attachToAssistant).setIcon("at-sign").onClick(() => this.attach(info.file!, editor)));
@@ -142,6 +147,16 @@ export default class TerminalPanePlugin extends Plugin implements SessionContext
       }
     }
     this.shareSelection();
+  }
+
+  /** Approves or rejects the newest edit still waiting, as its diff tab's buttons would. */
+  private decideLatest(approve: boolean): void {
+    const key = [...this.diffDecisions.keys()].pop();
+    if (key === undefined) {
+      new Notice(this.s.diff.nothingWaiting);
+      return;
+    }
+    this.decideDiff(key, approve);
   }
 
   /** Approves or rejects an edit from its diff tab, then gives the keyboard back to the terminal. */
