@@ -10,6 +10,7 @@ import { WebglAddon } from "@xterm/addon-webgl";
 import { lstatSync } from "node:fs";
 import { release } from "node:os";
 import { isOsc777Notify, readOsc9 } from "./attention.ts";
+import { programTitle, tabTitle } from "./tab-title.ts";
 import type { Change } from "./changes.ts";
 import { findExecutable, launchCommand, splitCommandLine, type CommandLine } from "./command-line.ts";
 import type { Strings } from "./i18n.ts";
@@ -154,6 +155,12 @@ export class TerminalSession {
     term.onData((data) => this.input(data));
     term.onResize(() => this.schedulePtyResize());
     term.onBell(() => this.onAttention());
+    term.onTitleChange((raw) => {
+      const title = programTitle(raw);
+      if (title === this.programTitle) return;
+      this.programTitle = title;
+      if (!this.disposed) this.onChange();
+    });
     term.parser.registerOscHandler(9, (data) => {
       const osc = readOsc9(data);
       if (osc.kind === "notify") this.onAttention();
@@ -180,9 +187,19 @@ export class TerminalSession {
     return profiles.find((p) => p.id === this.profileId) ?? profiles.find((p) => p.id === defaultProfile);
   }
 
-  get title(): string {
+  /** A name the user gave this tab; it outlasts restarts of the program and of Obsidian. */
+  customName: string | null = null;
+  /** The title the running program set for itself, if it says more than the profile's name. */
+  private programTitle: string | null = null;
+
+  /** The profile's name, which the tab shows when nothing better is known. */
+  get profileTitle(): string {
     const profile = this.profile();
     return profile?.name || profile?.command || this.ctx.s.untitled;
+  }
+
+  get title(): string {
+    return tabTitle(this.customName, this.programTitle, this.profileTitle);
   }
 
   start(): void {

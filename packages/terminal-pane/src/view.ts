@@ -3,6 +3,7 @@ import { ItemView, Menu, Scope, setIcon, setTooltip, TFile, type TAbstractFile, 
 import { type BrokenLinks, brokenLinksTo, totalBroken } from "./broken-links.ts";
 import { type Change, ChangeList } from "./changes.ts";
 import { tabHeaderEl } from "./obsidian-internals.ts";
+import { askText } from "./paste-confirm.ts";
 import { type SessionContext, TerminalSession } from "./session.ts";
 import { searchColorsFor } from "./theme.ts";
 
@@ -32,13 +33,16 @@ function obsidianWindow(): { flashFrame(flag: boolean): void } | undefined {
 interface SavedState {
   sessions: string[];
   active: number;
+  /** Names the user gave the tabs, in the same order; null where none was given. */
+  names?: (string | null)[];
 }
 
 function readState(state: unknown): SavedState | null {
-  const raw = state as { sessions?: unknown; active?: unknown } | null;
+  const raw = state as { sessions?: unknown; active?: unknown; names?: unknown } | null;
   if (!Array.isArray(raw?.sessions)) return null;
   const sessions = raw.sessions.filter((id): id is string => typeof id === "string");
-  return { sessions, active: typeof raw.active === "number" ? raw.active : 0 };
+  const names = Array.isArray(raw.names) ? raw.names.map((n) => (typeof n === "string" && n !== "" ? n : null)) : [];
+  return { sessions, active: typeof raw.active === "number" ? raw.active : 0, names };
 }
 
 export class TerminalView extends ItemView {
@@ -77,6 +81,7 @@ export class TerminalView extends ItemView {
     const state: SavedState = {
       sessions: this.sessions.map((session) => session.profileId),
       active: this.current ? this.sessions.indexOf(this.current) : 0,
+      names: this.sessions.map((session) => session.customName),
     };
     return { ...super.getState(), ...state };
   }
@@ -85,7 +90,10 @@ export class TerminalView extends ItemView {
     const saved = readState(state);
     if (saved && saved.sessions.length > 0 && this.body && !this.populated) {
       this.populated = true;
-      for (const id of saved.sessions) this.add(id, false);
+      saved.sessions.forEach((id, i) => {
+        const session = this.add(id, false);
+        if (session) session.customName = saved.names?.[i] ?? null;
+      });
       this.activate(this.sessions[Math.min(Math.max(saved.active, 0), this.sessions.length - 1)]);
     }
     await super.setState(state, result);
@@ -501,6 +509,9 @@ export class TerminalView extends ItemView {
       });
       if (session.attention) tab.createSpan({ cls: "terminal-pane-tab-mark", attr: { "aria-label": s.attention } });
       tab.createSpan({ cls: "terminal-pane-tab-title", text: session.title });
+      // The full title, and the profile behind a name or a program's title.
+      tab.setAttr("title", session.title === session.profileTitle ? session.title : `${session.title} (${session.profileTitle})`);
+      tab.addEventListener("dblclick", () => void this.rename(session));
       const close = tab.createDiv({ cls: "clickable-icon terminal-pane-tab-close", attr: { "aria-label": s.tabs.close } });
       setIcon(close, "x");
       tab.addEventListener("click", () => this.activate(session));
@@ -541,8 +552,20 @@ export class TerminalView extends ItemView {
       this.activate(session);
       session.restart();
     }));
+    menu.addItem((item) => item.setTitle(s.tabs.rename).setIcon("pencil").onClick(() => void this.rename(session)));
     menu.addItem((item) => item.setTitle(s.tabs.close).setIcon("x").onClick(() => this.close(session)));
     menu.showAtMouseEvent(event);
+  }
+
+  /** Asks for a name for the tab; an empty one goes back to the program's title or the profile. */
+  private async rename(session: TerminalSession): Promise<void> {
+    const t = this.ctx.s.tabs;
+    const name = await askText(this.app, { title: t.renameTitle, value: session.customName ?? session.title, placeholder: session.profileTitle, confirm: t.renameConfirm, cancel: t.renameCancel });
+    if (name === null) return;
+    session.customName = name.trim() || null;
+    this.renderTabs();
+    this.app.workspace.requestSaveLayout();
+    session.focus();
   }
 
   private profileMenu(event: MouseEvent): void {
