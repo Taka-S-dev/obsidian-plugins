@@ -248,6 +248,11 @@ export class TerminalView extends ItemView {
     this.containerEl.toggleClass("terminal-pane-no-title-bar", !this.ctx.settings.showTitleBar);
   }
 
+  /** The open terminals, in tab order. */
+  terminals(): readonly TerminalSession[] {
+    return this.sessions;
+  }
+
   applyAppearance(): void {
     this.applyTitleBar();
     for (const session of this.sessions) session.applyAppearance();

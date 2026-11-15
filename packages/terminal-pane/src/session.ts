@@ -19,6 +19,10 @@ import { PtyProcess } from "./pty-process.ts";
 import { findLinkCandidates, type LinkCandidate } from "./vault-links.ts";
 import type { Profile, Settings } from "./settings.ts";
 import { fontFor, themeFor } from "./theme.ts";
+import { glyphCanvases } from "./xterm-internals.ts";
+
+/** Glyph canvases already watched for loss; terminals sharing an atlas share its canvases. */
+const watchedCanvases = new WeakSet<HTMLCanvasElement>();
 
 /** Output not yet drawn by the terminal; past HIGH the program is paused until it drops below LOW. */
 const HIGH_WATER = 512 * 1024;
@@ -62,6 +66,8 @@ export interface SessionContext {
   dropText(data: DataTransfer | null): string | null;
   /** Makes the font of every terminal larger or smaller by `step` points, and saves it. */
   zoomFont(step: number): void;
+  /** Rebuilds the WebGL renderer of every terminal, after their shared glyph canvas was lost. */
+  rebuildRenderers(): void;
   /** Asks whether to paste text of this many lines into a program that would run each line. */
   confirmPaste(lines: number): Promise<boolean>;
 }
@@ -105,6 +111,7 @@ export class TerminalSession {
   readonly el: HTMLElement;
   private readonly term: Terminal;
   private readonly fit = new FitAddon();
+  private webgl: WebglAddon | null = null;
   private frame = 0;
   private fitRetries = 0;
   private resizeTimer: number | undefined;
@@ -379,11 +386,49 @@ export class TerminalSession {
   private useWebgl(term: Terminal): void {
     try {
       const webgl = new WebglAddon();
-      webgl.onContextLoss(() => webgl.dispose());
+      webgl.onContextLoss(() => {
+        webgl.dispose();
+        if (this.webgl === webgl) this.webgl = null;
+      });
+      // Fired before the renderer stores the new atlas, so it is read a moment later. The first
+      // atlas comes before the addon forwards the event, so it is watched once loading is done.
+      const watch = () => window.setTimeout(() => this.watchGlyphCanvas());
+      webgl.onChangeTextureAtlas(watch);
+      webgl.onAddTextureAtlasCanvas(watch);
       term.loadAddon(webgl);
+      this.webgl = webgl;
+      watch();
     } catch (error) {
       console.warn("Terminal Pane: WebGL unavailable, using the DOM renderer", error);
     }
+  }
+
+  /**
+   * Chromium can drop the 2D canvases the renderer draws glyphs on (GPU reset, memory pressure),
+   * and xterm.js does not recover them: every character not drawn before, such as a digit in a
+   * color not used yet, then shows as blank. All terminals share them, so all are rebuilt.
+   */
+  private watchGlyphCanvas(): void {
+    const lost = () => this.ctx.rebuildRenderers();
+    for (const canvas of glyphCanvases(this.term)) {
+      if (watchedCanvases.has(canvas)) continue;
+      watchedCanvases.add(canvas);
+      if (canvas.getContext("2d")?.isContextLost()) window.setTimeout(lost);
+      else canvas.addEventListener("contextlost", lost, { once: true });
+    }
+  }
+
+  /** Drops the WebGL renderer, releasing its share of the glyph atlas. */
+  dropRenderer(): void {
+    this.webgl?.dispose();
+    this.webgl = null;
+  }
+
+  /** Starts a WebGL renderer again after dropRenderer, with a newly drawn glyph atlas. */
+  restoreRenderer(): void {
+    if (this.disposed || this.webgl) return;
+    this.useWebgl(this.term);
+    this.term.refresh(0, this.term.rows - 1);
   }
 
   /** The program to start, or a message saying why there is none. */

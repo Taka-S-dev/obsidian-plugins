@@ -34,6 +34,10 @@ const SELECTION_DELAY_MS = 150;
 /** How long the font size settles after Ctrl+wheel before it is saved. */
 const ZOOM_SAVE_DELAY_MS = 500;
 
+/** More rebuilds of the renderers than this within the window means WebGL is not usable now. */
+const REBUILD_LIMIT = 3;
+const REBUILD_WINDOW_MS = 60_000;
+
 /** How long vault events for a file being restored are not taken for a terminal program's change. */
 const RESTORE_GRACE_MS = 3000;
 
@@ -49,6 +53,9 @@ export default class TerminalPanePlugin extends Plugin implements SessionContext
   private readonly diffDecisions = new Map<string, (approve: boolean) => void>();
   private selectionTimer: number | undefined;
   private zoomSaveTimer: number | undefined;
+  private rebuilding = false;
+  /** When the renderers were last rebuilt, to stop rebuilding if it does not help. */
+  private rebuilds: number[] = [];
   /** The last known contents of the vault's text files. */
   private readonly texts = new TextHistory();
   /** The vault path of the note last shared with the assistants. */
@@ -520,6 +527,26 @@ export default class TerminalPanePlugin extends Plugin implements SessionContext
     // Saved once the wheel stops, not on every notch.
     window.clearTimeout(this.zoomSaveTimer);
     this.zoomSaveTimer = window.setTimeout(() => void this.saveData(this.settings), ZOOM_SAVE_DELAY_MS);
+  }
+
+  rebuildRenderers(): void {
+    if (this.rebuilding) return;
+    this.rebuilding = true;
+    const now = Date.now();
+    this.rebuilds = this.rebuilds.filter((at) => now - at < REBUILD_WINDOW_MS);
+    this.rebuilds.push(now);
+    // A GPU that keeps losing them would otherwise have the renderers rebuilt without end; the
+    // slower DOM renderer then draws instead, until Obsidian restarts.
+    const giveUp = this.rebuilds.length > REBUILD_LIMIT;
+    if (giveUp) console.warn("Terminal Pane: glyph canvases keep being lost, using the DOM renderer");
+    // Every renderer lets go of the broken atlas first; one rebuilt while another still holds it
+    // would be handed the same atlas back.
+    window.setTimeout(() => {
+      this.rebuilding = false;
+      const sessions = this.views().flatMap((view) => view.terminals());
+      for (const session of sessions) session.dropRenderer();
+      if (!giveUp) for (const session of sessions) session.restoreRenderer();
+    });
   }
 
   async saveSettings(): Promise<void> {
