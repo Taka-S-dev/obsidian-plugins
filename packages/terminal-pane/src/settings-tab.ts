@@ -101,6 +101,10 @@ export class TerminalSettingTab extends PluginSettingTab {
       .setDynamicTooltip()
       .onChange(async (value) => { settings.fontSize = value; await plugin.saveSettings(); }));
 
+    new Setting(containerEl).setName(t.showTitleBar).setDesc(t.showTitleBarDesc).addToggle((toggle) => toggle
+      .setValue(settings.showTitleBar)
+      .onChange(async (value) => { settings.showTitleBar = value; await plugin.saveSettings(); }));
+
     new Setting(containerEl).setName(t.fontFamily).setDesc(t.fontFamilyDesc).addText((text) => text
       .setPlaceholder("JetBrainsMono Nerd Font, Consolas")
       .setValue(settings.fontFamily)

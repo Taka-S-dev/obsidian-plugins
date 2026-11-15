@@ -94,6 +94,7 @@ export class TerminalView extends ItemView {
   async onOpen(): Promise<void> {
     this.contentEl.empty();
     this.contentEl.addClass("terminal-pane-view");
+    this.applyTitleBar();
     const bar = this.contentEl.createDiv({ cls: "terminal-pane-bar" });
     this.tabsEl = bar.createDiv({ cls: "terminal-pane-tabs", attr: { role: "tablist" } });
     const actions = bar.createDiv({ cls: "terminal-pane-actions" });
@@ -234,7 +235,13 @@ export class TerminalView extends ItemView {
   focusActive(): void { this.current?.focus(); }
 
   /** Re-reads colors, font and font size for every tab. */
+  /** The tab's own row already names the terminals; without the title bar they get its height. */
+  private applyTitleBar(): void {
+    this.containerEl.toggleClass("terminal-pane-no-title-bar", !this.ctx.settings.showTitleBar);
+  }
+
   applyAppearance(): void {
+    this.applyTitleBar();
     for (const session of this.sessions) session.applyAppearance();
     this.renderTabs();
   }

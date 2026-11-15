@@ -80,3 +80,9 @@ test("connecting Claude Code and Copilot CLI is on unless turned off", () => {
   assert.equal(normalizeSettings({ connectAssistants: false }, defaults).connectAssistants, false);
   assert.equal(normalizeSettings({ connectAssistants: "no" }, defaults).connectAssistants, true);
 });
+
+test("the title bar shows unless turned off", () => {
+  assert.equal(defaults.showTitleBar, true);
+  assert.equal(normalizeSettings({ showTitleBar: false }, defaults).showTitleBar, false);
+  assert.equal(normalizeSettings({ showTitleBar: 1 }, defaults).showTitleBar, true);
+});

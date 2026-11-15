@@ -39,6 +39,8 @@ export interface Settings {
    * note and selection, and show the edits they propose as diffs.
    */
   connectAssistants: boolean;
+  /** Show Obsidian's title bar (back, forward, title, menu) above a terminal in the main area. */
+  showTitleBar: boolean;
 }
 
 export const FONT_SIZE = { min: 8, max: 32 };
@@ -61,6 +63,7 @@ export function defaultSettings(shell: string, cmdName: string): Settings {
     shiftEnterNewline: true,
     notifications: true,
     connectAssistants: true,
+    showTitleBar: true,
   };
 }
 
@@ -94,6 +97,7 @@ export function normalizeSettings(raw: unknown, defaults: Settings): Settings {
     shiftEnterNewline: typeof raw.shiftEnterNewline === "boolean" ? raw.shiftEnterNewline : defaults.shiftEnterNewline,
     notifications: typeof raw.notifications === "boolean" ? raw.notifications : defaults.notifications,
     connectAssistants: typeof raw.connectAssistants === "boolean" ? raw.connectAssistants : defaults.connectAssistants,
+    showTitleBar: typeof raw.showTitleBar === "boolean" ? raw.showTitleBar : defaults.showTitleBar,
   };
 }
 

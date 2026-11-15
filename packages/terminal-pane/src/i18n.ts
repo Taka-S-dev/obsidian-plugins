@@ -114,6 +114,9 @@ const en = {
     locationRight: "Right sidebar",
     locationTab: "New tab",
     fontSize: "Font size",
+    showTitleBar: "Show the title bar",
+    showTitleBarDesc:
+      "Obsidian's bar with back, forward, the title and the menu above a terminal opened in the main area. Turn off to give its height to the terminal; right-click the tab for the same menu.",
     fontFamily: "Font",
     fontFamilyDesc:
       "Font names separated by commas, for example JetBrainsMono Nerd Font, Consolas. Use a Nerd Font to show the icons many terminal programs draw. Leave empty to use Obsidian's monospace font.",
@@ -259,6 +262,9 @@ const ja: Strings = {
     locationRight: "右サイドバー",
     locationTab: "新しいタブ",
     fontSize: "文字の大きさ",
+    showTitleBar: "タイトルバーを表示",
+    showTitleBarDesc:
+      "メインの場所に開いたターミナルの上に出る、Obsidian の帯（戻る・進む・タイトル・メニュー）。オフにすると、その高さの分ターミナルが広くなります。同じメニューはタブの右クリックで出ます。",
     fontFamily: "フォント",
     fontFamilyDesc:
       "フォント名をカンマで区切って指定します（例：JetBrainsMono Nerd Font, Consolas）。ターミナルのプログラムが表示するアイコンを出すには Nerd Font を指定してください。空欄なら Obsidian の等幅フォントを使います。",

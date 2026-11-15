@@ -401,3 +401,8 @@
   color: var(--text-faint);
   background-color: var(--background-secondary);
 }
+
+/* Settings → Show the title bar off: the terminal takes the title bar's height. */
+.workspace-leaf-content.terminal-pane-no-title-bar > .view-header {
+  display: none;
+}
