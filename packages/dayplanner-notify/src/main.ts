@@ -33,6 +33,11 @@ export default class DayPlannerNotify extends Plugin {
   private suppressed = new Map<string, number>();
   /** Until this time (ms), the first announcement may be Day Planner's start-up check. */
   private catchUpUntil = 0;
+  /**
+   * False once the plugin unloads. Another plugin may have wrapped Notification after this one, so
+   * the hook can outlive the unload; it and any read still in flight check this and do nothing.
+   */
+  private active = true;
   private announced = false;
 
   async onload(): Promise<void> {
@@ -62,6 +67,7 @@ export default class DayPlannerNotify extends Plugin {
   }
 
   onunload(): void {
+    this.active = false;
     for (const id of this.timers) window.clearTimeout(id);
     this.timers.clear();
     for (const m of [...this.modals]) m.close();
@@ -97,7 +103,7 @@ export default class DayPlannerNotify extends Plugin {
   }
 
   private onNotificationCreated(title: unknown, n: Notification): void {
-    if (!this.settings.enabled) return;
+    if (!this.active || !this.settings.enabled) return;
     const start = parseTaskStartTitle(title);
     if (start === null) return;
     const until = this.suppressed.get(start.task);
@@ -138,6 +144,7 @@ export default class DayPlannerNotify extends Plugin {
         console.error("[dayplanner-notify] could not read the daily note", e);
       }
     }
+    if (!this.active) return;
     this.alert([start, ...others], { firedOn });
   }
 
@@ -236,7 +243,16 @@ export default class DayPlannerNotify extends Plugin {
   ): Promise<void> {
     // Moving the block back makes it "just started" again, so Day Planner will announce it once more.
     this.suppressed.set(start.task, Date.now() + SUPPRESS_AFTER_UNDO_MS);
-    const result = await this.writeNote(file, (data) => restoreLine(data, moved.after, moved.before));
+    let result: Awaited<ReturnType<typeof restoreLine>>;
+    try {
+      result = await this.writeNote(file, (data) => restoreLine(data, moved.after, moved.before));
+    } catch (e) {
+      console.error("[dayplanner-notify] undo failed", e);
+      this.suppressed.delete(start.task);
+      new Notice(this.s.errors.writeFailed, 8000);
+      return;
+    }
+    if (!this.active) return;
     if (!result.ok) {
       this.suppressed.delete(start.task);
       new Notice(result.reason === "ambiguous" ? this.s.errors.ambiguous : this.s.errors.undoLineChanged, 8000);

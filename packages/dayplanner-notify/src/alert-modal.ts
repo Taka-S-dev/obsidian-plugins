@@ -79,14 +79,21 @@ export class TaskStartModal extends Modal {
         .onClick(async () => {
           buttons.forEach((b) => b.setDisabled(true));
           error.setText("");
-          const message = await this.actions.onPostpone(start, minutes);
+          let message: string | null;
+          try {
+            message = await this.actions.onPostpone(start, minutes);
+          } catch (e) {
+            // Reading or writing the note failed; the buttons must not stay disabled.
+            console.error("[dayplanner-notify] postpone failed", e);
+            message = s.errors.writeFailed;
+          }
           if (message === null) {
             // A postponed task leaves the alert; the alert closes with the last one.
             el.remove();
             if (--this.remaining === 0) this.close();
             return;
           }
-          // Keep the task in the alert so the user can fall back to editing the note.
+          // Keep the task in the alert so the user can try again or edit the note.
           error.setText(message);
           buttons.forEach((b) => b.setDisabled(false));
         });

@@ -20,6 +20,7 @@ const en = {
     noStartTime: "The start time is unknown, so the block was not moved.",
     undoLineChanged: "The moved line was edited afterwards, so it was not restored.",
     openDailyNote: "Could not open the daily note. Check the core Daily notes plugin.",
+    writeFailed: "Could not read or write the daily note. Try again, or edit the note.",
   },
   commands: {
     testNow: "Send a test notification",
@@ -66,6 +67,7 @@ const ja: Strings = {
     noStartTime: "開始時刻が分からないため、延期できません。",
     undoLineChanged: "延期した行があとから変更されたため、戻せませんでした。",
     openDailyNote: "デイリーノートを開けませんでした。コアプラグイン「デイリーノート」を確認してください。",
+    writeFailed: "デイリーノートの読み書きに失敗しました。もう一度試すか、ノートを直接編集してください。",
   },
   commands: {
     testNow: "テスト通知を送る",
