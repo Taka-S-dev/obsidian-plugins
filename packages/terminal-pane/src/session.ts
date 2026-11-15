@@ -43,6 +43,12 @@ export interface SessionContext {
   openFile(path: string, newTab: boolean): void;
   /** Shows what a terminal program changed in a file, as a diff with a button to undo it. */
   reviewChange(change: Change): void;
+  /** Shows every change in a terminal's list in one tab. */
+  reviewAllChanges(): void;
+  /** Asks, then undoes every change in a terminal's list. */
+  undoAllChanges(): void;
+  /** Called after a terminal's list of changes changed, so views showing it are redrawn. */
+  changesUpdated(): void;
   /** A text file's last known contents, while a vault event for it is being handled. */
   textBefore(path: string): string | undefined;
   /** The assistants with a session connected now, and the note they are told is open. */

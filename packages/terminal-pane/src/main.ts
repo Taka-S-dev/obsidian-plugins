@@ -18,7 +18,7 @@ import { type AssistantBridge, type DiffViewer, IdeBridge } from "./ide-bridge.t
 import { CopilotBridge } from "./copilot-bridge.ts";
 import type { DiffRequest } from "./ide-protocol.ts";
 import type { Change } from "./changes.ts";
-import { DIFF_VIEW_TYPE, DiffView, type ProposalState, type ReviewState } from "./diff-view.ts";
+import { DIFF_VIEW_TYPE, DiffView, type ProposalState, type ReviewAllState, type ReviewState } from "./diff-view.ts";
 import { isTextFile, TextHistory } from "./text-history.ts";
 import { type LinkCandidate, toVaultPath } from "./vault-links.ts";
 
@@ -67,6 +67,8 @@ export default class TerminalPanePlugin extends Plugin implements SessionContext
       openFile: (path) => this.openFile(path, false),
       undo: (change) => void this.undoChange(change),
       fixLinks: (change) => void this.fixLinks(change),
+      changes: () => this.changesView()?.changeList() ?? [],
+      undoAll: () => this.undoAllChanges(),
     }));
     // A diff left from before a restart: Claude Code no longer waits on it.
     this.app.workspace.onLayoutReady(() => this.app.workspace.detachLeavesOfType(DIFF_VIEW_TYPE));
@@ -252,6 +254,51 @@ export default class TerminalPanePlugin extends Plugin implements SessionContext
     })();
   }
 
+  reviewAllChanges(): void {
+    void (async () => {
+      const leaf = this.reviewLeaves()[0] ?? this.leafBesideTerminal();
+      const state: ReviewAllState = { kind: "review-all" };
+      await leaf.setViewState({ type: DIFF_VIEW_TYPE, active: true, state: { ...state } });
+      await this.app.workspace.revealLeaf(leaf);
+    })();
+  }
+
+  changesUpdated(): void {
+    for (const leaf of this.reviewLeaves()) if (leaf.view instanceof DiffView) leaf.view.refresh();
+  }
+
+  undoAllChanges(): void {
+    void this.undoAll();
+  }
+
+  /**
+   * Asks, then undoes every change in the terminal's list. A change can wait on another, as when
+   * two files swapped names, so passes repeat while any change still goes back.
+   */
+  private async undoAll(): Promise<void> {
+    const view = this.changesView();
+    const pending = (view?.changeList() ?? []).filter((change) => change.before !== undefined);
+    if (!view || pending.length === 0) return;
+    const r = this.s.review;
+    const ok = await confirmAction(this.app, {
+      title: r.confirmAllTitle(pending.length), desc: r.confirmAll, confirm: r.confirm, cancel: r.cancel, warning: true,
+    });
+    if (!ok) return;
+    let done = 0;
+    let progress = true;
+    while (pending.length > 0 && progress) {
+      progress = false;
+      for (const change of [...pending]) {
+        if (!(await this.restore(change))) continue;
+        pending.splice(pending.indexOf(change), 1);
+        view.forgetChange(change.path);
+        done++;
+        progress = true;
+      }
+    }
+    new Notice(pending.length === 0 ? r.undoneAll(done) : r.undoneSome(done, pending.length), pending.length === 0 ? 4000 : 8000);
+  }
+
   textBefore(path: string): string | undefined {
     return this.texts.get(path);
   }
@@ -303,7 +350,8 @@ export default class TerminalPanePlugin extends Plugin implements SessionContext
     for (const leaf of this.app.workspace.getLeavesOfType(VIEW_TYPE)) {
       if (leaf.view instanceof TerminalView) leaf.view.forgetChange(change.path);
     }
-    for (const leaf of this.reviewLeaves()) leaf.detach();
+    // A tab showing only this change has nothing left to show; one showing all of them redraws.
+    for (const leaf of this.reviewLeaves()) if (leaf.view instanceof DiffView && !leaf.view.isReviewAll) leaf.detach();
   }
 
   /**
@@ -645,6 +693,16 @@ export default class TerminalPanePlugin extends Plugin implements SessionContext
     await this.app.workspace.revealLeaf(view.leaf);
     this.app.workspace.setActiveLeaf(view.leaf, { focus: true });
     view.focusActive();
+  }
+
+  /**
+   * The pane whose list of changes is meant: the one used last, or else any open one, as after a
+   * reload before a terminal has had the keyboard.
+   */
+  private changesView(): TerminalView | null {
+    const views = this.views();
+    if (this.lastView && views.includes(this.lastView)) return this.lastView;
+    return views[0] ?? null;
   }
 
   /** The pane used last, or any open one. */

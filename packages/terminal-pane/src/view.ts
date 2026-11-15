@@ -340,9 +340,15 @@ export class TerminalView extends ItemView {
     this.changed(() => this.changes.forget(path));
   }
 
+  /** The changes in this terminal's list, newest first. */
+  changeList(): readonly Change[] {
+    return this.changes.list();
+  }
+
   private changed(update: () => void): void {
     update();
     this.renderChanges();
+    this.ctx.changesUpdated();
   }
 
   private renderChanges(): void {
@@ -375,6 +381,11 @@ export class TerminalView extends ItemView {
       });
     }
     menu.addSeparator();
+    const r = this.ctx.s.review;
+    menu.addItem((item) => item.setTitle(r.reviewAll).setIcon("files").onClick(() => this.ctx.reviewAllChanges()));
+    if (this.changes.list().some((change) => change.before !== undefined)) {
+      menu.addItem((item) => item.setTitle(r.undoAll).setIcon("undo-2").onClick(() => this.ctx.undoAllChanges()));
+    }
     menu.addItem((item) => item.setTitle(s.clear).setIcon("list-x").onClick(() => this.changed(() => this.changes.clear())));
     menu.showAtMouseEvent(event);
   }

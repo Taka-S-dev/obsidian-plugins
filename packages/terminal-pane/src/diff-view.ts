@@ -32,7 +32,12 @@ export interface ReviewState {
   change: Change;
 }
 
-export type DiffState = ProposalState | ReviewState;
+/** Every change in the terminal's list, one after another. */
+export interface ReviewAllState {
+  kind: "review-all";
+}
+
+export type DiffState = ProposalState | ReviewState | ReviewAllState;
 
 /** What the buttons in the diff do. */
 export interface DiffActions {
@@ -41,11 +46,15 @@ export interface DiffActions {
   undo(change: Change): void;
   /** Points links to a moved file's old path at its new one. */
   fixLinks(change: Change): void;
+  /** The changes in the terminal's list now, newest first. */
+  changes(): readonly Change[];
+  undoAll(): void;
 }
 
 function readState(state: unknown): DiffState | null {
   const s = state as { kind?: unknown; change?: Partial<Change>; [key: string]: unknown } | null;
   if (s?.kind === "review") return typeof s.change?.path === "string" ? (s as unknown as ReviewState) : null;
+  if (s?.kind === "review-all") return { kind: "review-all" };
   return s?.kind === "proposal" && typeof s.key === "string" && typeof s.assistant === "string"
     && typeof s.path === "string" && typeof s.label === "string" && typeof s.contents === "string"
     ? (s as unknown as ProposalState) : null;
@@ -65,11 +74,18 @@ export class DiffView extends ItemView {
     const state = this.state;
     if (!state) return this.s.diff.empty;
     if (state.kind === "review") return this.s.review.tabTitle(basename(state.change.path));
+    if (state.kind === "review-all") return this.s.review.allTitle(this.actions.changes().length);
     return this.s.diff.tabTitle(state.assistant, basename(state.path));
   }
 
   get diffKey(): string | null { return this.state?.kind === "proposal" ? this.state.key : null; }
-  get isReview(): boolean { return this.state?.kind === "review"; }
+  get isReview(): boolean { return this.state?.kind === "review" || this.state?.kind === "review-all"; }
+  get isReviewAll(): boolean { return this.state?.kind === "review-all"; }
+
+  /** Shows the list of changes as it is now, after it changed. */
+  refresh(): void {
+    if (this.state?.kind === "review-all") void this.render().then(() => refreshHeader(this.leaf));
+  }
 
   // Not saved with the layout: after a restart the assistant no longer waits on the edit, and the
   // list of changes is gone.
@@ -85,10 +101,12 @@ export class DiffView extends ItemView {
   async onOpen(): Promise<void> {
     // A reviewed file that changes again is shown as it is now, and so are links found broken.
     this.registerEvent(this.app.vault.on("modify", (file) => {
-      if (this.state?.kind === "review" && file.path === this.state.change.path) void this.render();
+      const state = this.state;
+      if (state?.kind === "review" && file.path === state.change.path) void this.render();
+      if (state?.kind === "review-all" && this.actions.changes().some((c) => c.path === file.path)) void this.render();
     }));
     this.registerEvent(this.app.metadataCache.on("resolved", () => {
-      if (this.state?.kind === "review") void this.render();
+      if (this.isReview) void this.render();
     }));
     await this.render();
   }
@@ -96,6 +114,7 @@ export class DiffView extends ItemView {
   private async render(): Promise<void> {
     const state = this.state;
     if (state?.kind === "review") return this.renderReview(state);
+    if (state?.kind === "review-all") return this.renderReviewAll(state);
     const { contentEl, s } = this;
     this.reset();
     if (!state) {
@@ -109,24 +128,55 @@ export class DiffView extends ItemView {
       // A file the edit creates.
     }
     const result = diff(before, state.contents);
-    const header = this.header(state.label, result, before === "" ? s.diff.newFile : null);
+    const header = this.header(contentEl, state.label, result, before === "" ? s.diff.newFile : null);
     const buttons = header.createDiv({ cls: "terminal-pane-diff-actions" });
     this.button(buttons, s.diff.reject, false, () => this.actions.decide(state.key, false));
     this.button(buttons, s.diff.approve, true, () => this.actions.decide(state.key, true));
     contentEl.createDiv({ cls: "terminal-pane-diff-note", text: s.diff.decideHere(state.assistant) });
-    this.renderBody(result);
+    this.renderBody(contentEl, result);
   }
 
   private async renderReview(state: ReviewState): Promise<void> {
-    const { change } = state;
-    const { s } = this;
-    const file = this.app.vault.getFileByPath(change.path);
-    const now = change.kind === "deleted" || !(file instanceof TFile) ? "" : await this.app.vault.read(file);
+    const now = await this.currentText(state.change);
     if (this.state !== state) return;
     this.reset();
+    this.renderChange(this.contentEl, state.change, now);
+  }
+
+  private async renderReviewAll(state: ReviewAllState): Promise<void> {
+    const changes = this.actions.changes();
+    const texts = await Promise.all(changes.map((change) => this.currentText(change)));
+    if (this.state !== state) return;
+    this.reset();
+    const { s } = this;
+    const header = this.contentEl.createDiv({ cls: "terminal-pane-diff-header" });
+    header.createDiv({ cls: "terminal-pane-diff-path", text: s.review.allTitle(changes.length) });
+    if (changes.some((change) => change.before !== undefined)) {
+      const buttons = header.createDiv({ cls: "terminal-pane-diff-actions" });
+      this.button(buttons, s.review.undoAll, false, () => this.actions.undoAll());
+    }
+    if (changes.length === 0) {
+      this.contentEl.createDiv({ cls: "terminal-pane-diff-note", text: s.review.noneLeft });
+      return;
+    }
+    this.contentEl.createDiv({ cls: "terminal-pane-diff-note", text: s.review.note });
+    changes.forEach((change, i) => {
+      const section = this.contentEl.createDiv({ cls: "terminal-pane-review-file" });
+      this.renderChange(section, change, texts[i], false);
+    });
+  }
+
+  private async currentText(change: Change): Promise<string> {
+    const file = this.app.vault.getFileByPath(change.path);
+    return change.kind === "deleted" || !(file instanceof TFile) ? "" : this.app.vault.read(file);
+  }
+
+  /** One change: its path and buttons, any broken links, notes, and the diff. */
+  private renderChange(parent: HTMLElement, change: Change, now: string, withNote = true): void {
+    const { s } = this;
     const tag = change.kind === "created" ? s.changes.created : change.kind === "deleted" ? s.changes.deleted : null;
     const result = diff(change.before ?? now, now);
-    const header = this.header(change.path, result, tag);
+    const header = this.header(parent, change.path, result, tag);
     const buttons = header.createDiv({ cls: "terminal-pane-diff-actions" });
     const old = change.kind === "deleted" ? change.path : change.kind === "renamed" ? change.from : undefined;
     const broken = old ? brokenLinksTo(old, this.app.metadataCache.unresolvedLinks) : [];
@@ -134,7 +184,7 @@ export class DiffView extends ItemView {
     if (broken.length > 0 && change.kind === "renamed") this.button(buttons, s.review.fixLinks, true, () => this.actions.fixLinks(change));
     if (change.before !== undefined) this.button(buttons, s.review.undo, false, () => this.actions.undo(change));
     if (broken.length > 0) {
-      const box = this.contentEl.createDiv({ cls: "terminal-pane-diff-broken" });
+      const box = parent.createDiv({ cls: "terminal-pane-diff-broken" });
       const total = broken.reduce((n, item) => n + item.count, 0);
       box.createDiv({ cls: "terminal-pane-diff-broken-title", text: s.review.brokenTitle(total) });
       for (const { source, count } of broken) {
@@ -145,11 +195,11 @@ export class DiffView extends ItemView {
       }
       box.createDiv({ text: change.kind === "renamed" ? s.review.fixLinksHint : s.review.undoMendsLinks });
     }
-    const notes = [s.review.note];
+    const notes = withNote ? [s.review.note] : [];
     if (change.kind === "renamed" && change.from) notes.push(s.review.renamedFrom(change.from));
     if (change.before === undefined) notes.push(s.review.unknownBefore);
-    for (const text of notes) this.contentEl.createDiv({ cls: "terminal-pane-diff-note", text });
-    if (change.before !== undefined) this.renderBody(result);
+    for (const text of notes) parent.createDiv({ cls: "terminal-pane-diff-note", text });
+    if (change.before !== undefined) this.renderBody(parent, result);
   }
 
   private reset(): void {
@@ -158,8 +208,8 @@ export class DiffView extends ItemView {
   }
 
   /** The path with counts of added and removed lines; `tag` marks a new or deleted file. */
-  private header(label: string, result: DiffResult, tag: string | null): HTMLElement {
-    const header = this.contentEl.createDiv({ cls: "terminal-pane-diff-header" });
+  private header(parent: HTMLElement, label: string, result: DiffResult, tag: string | null): HTMLElement {
+    const header = parent.createDiv({ cls: "terminal-pane-diff-header" });
     header.createDiv({ cls: "terminal-pane-diff-path", text: label });
     const stats = header.createDiv({ cls: "terminal-pane-diff-stats" });
     stats.createSpan({ cls: "is-added", text: `+${result.added}` });
@@ -173,8 +223,8 @@ export class DiffView extends ItemView {
     button.addEventListener("click", onClick);
   }
 
-  private renderBody(result: DiffResult): void {
-    const body = this.contentEl.createDiv({ cls: "terminal-pane-diff-body" });
+  private renderBody(parent: HTMLElement, result: DiffResult): void {
+    const body = parent.createDiv({ cls: "terminal-pane-diff-body" });
     if (result.hunks.length === 0) {
       body.createDiv({ cls: "terminal-pane-diff-skipped", text: this.s.diff.noChanges });
       return;
