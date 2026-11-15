@@ -1,7 +1,7 @@
 {
   "id": "terminal-pane",
   "name": "Terminal Pane",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "minAppVersion": "1.8.7",
   "description": "Run a shell, GitHub Copilot CLI or any terminal program in a pane, started in the vault folder.",
   "author": "Taka-S-dev",
