@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { parsePostponeOptions, rescheduleBlock, restoreLine, startMinutesOf } from "../src/reschedule.ts";
+import { listBlocks, parsePostponeOptions, rescheduleBlock, restoreLine, startMinutesOf } from "../src/reschedule.ts";
 
 const NOTE = [
   "# Day planner",
@@ -112,4 +112,26 @@ test("undo refuses when the shifted line was edited or duplicated meanwhile", ()
 
 test("refuses to move a block before midnight", () => {
   assert.deepEqual(rescheduleBlock("- [ ] 00:10 - 00:40 early", "early", 10, -15), { ok: false, reason: "past-midnight" });
+});
+
+test("a block whose end time is not a time is left as it is", () => {
+  const r = rescheduleBlock("- [ ] 09:00 - 25:00 task", "task", 9 * 60, 15);
+  assert.deepEqual(r, { ok: false, reason: "invalid-time" });
+});
+
+test("time blocks inside code blocks are neither listed nor moved", () => {
+  const note = [
+    "```",
+    "- [ ] 09:00 - 10:00 example",
+    "```",
+    "~~~md",
+    "- [ ] 11:00 - 12:00 example",
+    "~~~",
+    "- [ ] 09:00 - 10:00 real",
+  ].join("\n");
+  assert.deepEqual(listBlocks(note).map((b) => b.task), ["real"]);
+  assert.deepEqual(rescheduleBlock(note, "example", 9 * 60, 15), { ok: false, reason: "not-found" });
+  const moved = rescheduleBlock(note, "real", 9 * 60, 15);
+  assert.ok(moved.ok);
+  assert.ok(moved.content.includes("- [ ] 09:00 - 10:00 example"), "the example in the code block is untouched");
 });

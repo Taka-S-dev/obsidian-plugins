@@ -2,7 +2,7 @@
 
 export type RescheduleResult =
   | { ok: true; content: string; from: string; to: string; before: string; after: string }
-  | { ok: false; reason: "not-found" | "ambiguous" | "past-midnight" };
+  | { ok: false; reason: "not-found" | "ambiguous" | "past-midnight" | "invalid-time" };
 
 export type RestoreResult = { ok: true; content: string } | { ok: false; reason: "not-found" | "ambiguous" };
 
@@ -12,6 +12,23 @@ const BLOCK_LINE =
   /^(\s*(?:[-*+]|\d+[.)])\s+(?:\[ \]\s+)?)(\d{1,2}):(\d{2})(?:(\s*-\s*)(\d{1,2}):(\d{2}))?(\s+)(.*)$/;
 
 const DAY = 24 * 60;
+
+const FENCE = /^ {0,3}(`{3,}|~{3,})/;
+
+/** Which lines are inside fenced code blocks, where a time block is only an example. */
+function inCode(lines: string[]): boolean[] {
+  let open: string | null = null;
+  return lines.map((line) => {
+    const fence = FENCE.exec(line)?.[1];
+    if (open === null) {
+      if (fence) open = fence;
+      return open !== null;
+    }
+    // A fence closes with the same character, at least as long as the one that opened it.
+    if (fence && fence[0] === open[0] && fence.length >= open.length) open = null;
+    return true;
+  });
+}
 
 function toMinutes(h: string, m: string): number | null {
   const hours = Number(h);
@@ -54,8 +71,10 @@ export function rescheduleBlock(
   const bodies = lines.map((line) => (line.endsWith("\r") ? line.slice(0, -1) : line));
   const exact: number[] = [];
   const loose: number[] = [];
+  const code = inCode(bodies);
 
   bodies.forEach((line, i) => {
+    if (code[i]) return;
     const m = BLOCK_LINE.exec(line);
     if (!m || toMinutes(m[2], m[3]) !== startMinutes) return;
     const text = m[8].trim();
@@ -73,6 +92,8 @@ export function rescheduleBlock(
   const m = BLOCK_LINE.exec(bodies[index])!;
   const start = toMinutes(m[2], m[3])!;
   const end = m[5] !== undefined ? toMinutes(m[5], m[6]) : null;
+  // "09:00 - 25:00": moving it would drop the end the user wrote.
+  if (m[5] !== undefined && end === null) return { ok: false, reason: "invalid-time" };
   const newStart = start + shiftMinutes;
   const newEnd = end === null ? null : end + shiftMinutes;
   // Crossing into another day would belong in another note; leave that to the user.
@@ -103,9 +124,11 @@ export function rescheduleBlock(
  */
 export function restoreLine(content: string, after: string, before: string): RestoreResult {
   const lines = content.split("\n");
+  const bodies = lines.map((line) => (line.endsWith("\r") ? line.slice(0, -1) : line));
+  const code = inCode(bodies);
   const hits: number[] = [];
-  lines.forEach((line, i) => {
-    if ((line.endsWith("\r") ? line.slice(0, -1) : line) === after) hits.push(i);
+  bodies.forEach((line, i) => {
+    if (!code[i] && line === after) hits.push(i);
   });
   if (hits.length === 0) return { ok: false, reason: "not-found" };
   if (hits.length > 1) return { ok: false, reason: "ambiguous" };
@@ -126,8 +149,10 @@ export interface Block {
 /** The open time blocks in a note, in note order. */
 export function listBlocks(content: string): Block[] {
   const blocks: Block[] = [];
-  for (const raw of content.split("\n")) {
-    const m = BLOCK_LINE.exec(raw.endsWith("\r") ? raw.slice(0, -1) : raw);
+  const bodies = content.split("\n").map((raw) => (raw.endsWith("\r") ? raw.slice(0, -1) : raw));
+  const code = inCode(bodies);
+  for (const [i, body] of bodies.entries()) {
+    const m = code[i] ? null : BLOCK_LINE.exec(body);
     if (!m) continue;
     const start = toMinutes(m[2], m[3]);
     const end = m[5] !== undefined ? toMinutes(m[5], m[6]) : null;
