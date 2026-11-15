@@ -21,6 +21,7 @@ const en = {
   tabs: {
     newTerminal: "New terminal",
     chooseProfile: "New terminal with profile",
+    newWithProfile: (name: string) => `New terminal: ${name}`,
     restart: "Restart",
     close: "Close",
     rename: "Rename",
@@ -188,6 +189,7 @@ const ja: Strings = {
   tabs: {
     newTerminal: "新しいターミナル",
     chooseProfile: "プロファイルを選んで新しいターミナル",
+    newWithProfile: (name) => `新しいターミナル: ${name}`,
     restart: "再起動",
     close: "閉じる",
     rename: "名前を変更",

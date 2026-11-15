@@ -570,6 +570,28 @@ export class TerminalView extends ItemView {
     session.focus();
   }
 
+  /**
+   * Obsidian's menu for the pane (its tab's right-click menu and the title bar's ⋮) gets what the
+   * pane's own row offers, so nothing is lost when that row is hidden.
+   */
+  onPaneMenu(menu: Menu, source: string): void {
+    super.onPaneMenu(menu, source);
+    const { s, settings } = this.ctx;
+    menu.addItem((item) => item.setSection("terminal-pane").setTitle(s.tabs.newTerminal).setIcon("plus")
+      .onClick(() => this.add(settings.defaultProfile)));
+    if (settings.profiles.length > 1) {
+      for (const profile of settings.profiles) {
+        const name = profile.name || profile.command || profile.id;
+        menu.addItem((item) => item.setSection("terminal-pane").setTitle(s.tabs.newWithProfile(name)).setIcon("square-terminal")
+          .onClick(() => this.add(profile.id)));
+      }
+    }
+    if (this.changes.size > 0) {
+      menu.addItem((item) => item.setSection("terminal-pane").setTitle(s.review.reviewAll).setIcon("files")
+        .onClick(() => this.ctx.reviewAllChanges()));
+    }
+  }
+
   private profileMenu(event: MouseEvent): void {
     const { profiles, defaultProfile } = this.ctx.settings;
     const menu = new Menu();
