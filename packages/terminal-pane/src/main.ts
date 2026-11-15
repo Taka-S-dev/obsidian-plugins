@@ -325,7 +325,16 @@ export default class TerminalPanePlugin extends Plugin implements SessionContext
       new Notice(r.linksFixed(name));
     } catch (error) {
       console.warn("Terminal Pane: could not update links", error);
-      new Notice(r.linksFixFailed(name));
+      // Put the file back where the program left it. Links already updated name that path, so
+      // they keep working; the rest stay as broken as before.
+      if (file.path !== change.path) {
+        try {
+          await vault.rename(file, change.path);
+        } catch (rollback) {
+          console.warn("Terminal Pane: could not move the file back", rollback);
+        }
+      }
+      new Notice(file.path === change.path ? r.linksFixUndone(name) : r.linksFixStranded(name, file.path));
     }
   }
 

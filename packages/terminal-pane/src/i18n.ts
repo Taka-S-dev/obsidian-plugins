@@ -69,6 +69,8 @@ const en = {
     fixLinks: "Update links",
     linksFixed: (name: string) => `Updated the links to ${name}.`,
     linksFixFailed: (name: string) => `Could not update the links to ${name}: the file has moved again, or another file has its old name.`,
+    linksFixUndone: (name: string) => `Could not update the links to ${name}. The file stays where it was.`,
+    linksFixStranded: (name: string, path: string) => `Could not update the links to ${name}, nor move it back. It is now at ${path}.`,
   },
   find: {
     placeholder: "Find",
@@ -212,6 +214,8 @@ const ja: Strings = {
     fixLinks: "リンクを直す",
     linksFixed: (name) => `${name} へのリンクを直しました。`,
     linksFixFailed: (name) => `${name} へのリンクを直せませんでした。ファイルがまた移動されたか、元の名前のファイルがあります。`,
+    linksFixUndone: (name) => `${name} へのリンクを直せませんでした。ファイルは元の場所のままです。`,
+    linksFixStranded: (name, path) => `${name} へのリンクを直せず、元の場所にも戻せませんでした。今は ${path} にあります。`,
   },
   find: {
     placeholder: "検索",
