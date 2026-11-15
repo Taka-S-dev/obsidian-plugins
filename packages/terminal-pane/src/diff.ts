@@ -51,7 +51,9 @@ export function diffLines(oldText: string, newText: string): DiffLine[] {
   let endB = b.length;
   while (endA > start && endB > start && a[endA - 1] === b[endB - 1]) { endA--; endB--; }
 
-  const middle = myers(a.slice(start, endA), b.slice(start, endB));
+  const oldMiddle = a.slice(start, endA);
+  const newMiddle = b.slice(start, endB);
+  const middle = myers(oldMiddle, newMiddle, MAX_EDITS) ?? replaced(oldMiddle, newMiddle);
   const out: DiffLine[] = [];
   let oldLine = 1;
   let newLine = 1;
@@ -69,10 +71,16 @@ export function diffLines(oldText: string, newText: string): DiffLine[] {
 /** Past this many differing lines the texts are shown as replaced outright, to bound the work. */
 const MAX_EDITS = 4000;
 
-function myers(a: string[], b: string[]): { kind: LineKind; text: string }[] {
+type Step = { kind: LineKind; text: string };
+
+const replaced = (a: string[], b: string[]): Step[] =>
+  [...a.map((text) => ({ kind: "removed" as const, text })), ...b.map((text) => ({ kind: "added" as const, text }))];
+
+/** The shortest edit script, or null when it takes more than `maxEdits` edits. */
+function myers(a: string[], b: string[], maxEdits: number): Step[] | null {
   const n = a.length;
   const m = b.length;
-  const max = Math.min(n + m, MAX_EDITS);
+  const max = Math.min(n + m, maxEdits);
   const offset = max + 1;
   const v = new Int32Array(2 * max + 3);
   // Before round d only diagonals -d..d are read, so each saved copy holds just that band.
@@ -87,7 +95,7 @@ function myers(a: string[], b: string[]): { kind: LineKind; text: string }[] {
       if (x >= n && y >= m) return backtrack(trace, a, b, d);
     }
   }
-  return [...a.map((text) => ({ kind: "removed" as const, text })), ...b.map((text) => ({ kind: "added" as const, text }))];
+  return null;
 }
 
 function backtrack(trace: Int32Array[], a: string[], b: string[], last: number): { kind: LineKind; text: string }[] {
@@ -116,6 +124,9 @@ const tokens = (line: string) =>
 /** Lines longer than this are not compared within, to bound the work. */
 const MAX_INLINE = 2000;
 
+/** Characters compared within lines per diff; past this, changed lines are shown whole. */
+const INLINE_BUDGET = 20_000;
+
 /**
  * What changed between a removed line and the line added in its place, as parts of each. Null when
  * less than half of the shorter line is shared: the line was rewritten, and marking all of it says
@@ -130,8 +141,28 @@ export function inlineChanges(oldLine: string, newLine: string): { old: Span[]; 
     if (last && last.changed === changed) last.text += text;
     else spans.push({ text, changed });
   };
+  const a = tokens(oldLine);
+  const b = tokens(newLine);
+  // Common ends are cheap to take off; what is left decides the cost.
+  let start = 0;
+  while (start < a.length && start < b.length && a[start] === b[start]) start++;
+  let endA = a.length;
+  let endB = b.length;
+  while (endA > start && endB > start && a[endA - 1] === b[endB - 1]) { endA--; endB--; }
+  // A line is marked only when about half of its shorter side is shared. With the ends already
+  // shared, the middle may then take at most this many edits; past that the search stops.
+  const n = endA - start;
+  const m = endB - start;
+  const ends = a.length - n;
+  const middle = myers(a.slice(start, endA), b.slice(start, endB), n + m - Math.max(0, Math.min(a.length, b.length) - 2 * ends));
+  if (!middle) return null;
+  const steps: Step[] = [
+    ...a.slice(0, start).map((text) => ({ kind: "same" as const, text })),
+    ...middle,
+    ...a.slice(endA).map((text) => ({ kind: "same" as const, text })),
+  ];
   let shared = 0;
-  for (const step of myers(tokens(oldLine), tokens(newLine))) {
+  for (const step of steps) {
     if (step.kind === "same") {
       shared += step.text.length;
       add(old, step.text, false);
@@ -146,6 +177,7 @@ export function inlineChanges(oldLine: string, newLine: string): { old: Span[]; 
 
 /** Marks what changed within each removed line and the added line in its place, pairing them in order. */
 function markInline(lines: DiffLine[]): void {
+  let budget = INLINE_BUDGET;
   let i = 0;
   while (i < lines.length) {
     if (lines[i].kind !== "removed") { i++; continue; }
@@ -157,6 +189,8 @@ function markInline(lines: DiffLine[]): void {
     for (let p = 0; p < pairs; p++) {
       const removed = lines[removedStart + p];
       const added = lines[addedStart + p];
+      budget -= removed.text.length + added.text.length;
+      if (budget < 0) return;
       const inline = inlineChanges(removed.text, added.text);
       if (inline) {
         removed.spans = inline.old;

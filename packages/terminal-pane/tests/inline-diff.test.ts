@@ -32,3 +32,13 @@ test("removed and added lines are paired in order within a change", () => {
   assert.deepEqual(removed.map((l) => marked(l.spans ?? [])), [["keep"], ["keep"]]);
   assert.deepEqual(added.map((l) => (l.spans ? marked(l.spans) : null)), [["kept"], ["kept"], null]);
 });
+
+test("past the budget for comparing within lines, changed lines are shown whole", () => {
+  const before = Array.from({ length: 30 }, (_, i) => `${"x".repeat(990)} line ${i} old`).join("\n");
+  const after = Array.from({ length: 30 }, (_, i) => `${"x".repeat(990)} line ${i} new`).join("\n");
+  const added = diff(before, after).hunks.flatMap((hunk) => hunk.lines).filter((line) => line.kind === "added");
+  assert.equal(added.length, 30);
+  const markedCount = added.filter((line) => line.spans).length;
+  assert.ok(markedCount > 0 && markedCount < 30, `marked ${markedCount} of 30`);
+  assert.ok(added.slice(0, markedCount).every((line) => line.spans), "the first lines are the ones marked");
+});
