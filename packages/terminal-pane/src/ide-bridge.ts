@@ -8,7 +8,7 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import { type WebSocket, WebSocketServer } from "ws";
 import {
-  atMentioned, closedTab, diffDecision, type DiffRequest, diffRequest, type EditorSelection, type Mention, lockFile, reply, type RpcMessage, selectionChanged,
+  atMentioned, closedTab, parseRpc, diffDecision, type DiffRequest, diffRequest, type EditorSelection, type Mention, lockFile, reply, type RpcMessage, selectionChanged,
 } from "./ide-protocol.ts";
 
 const TOKEN_HEADER = "x-claude-code-ide-authorization";
@@ -164,12 +164,8 @@ export class IdeBridge implements AssistantBridge {
     socket.on("close", gone);
     socket.on("error", gone);
     socket.on("message", (data) => {
-      let message: RpcMessage;
-      try {
-        message = JSON.parse(data.toString()) as RpcMessage;
-      } catch {
-        return;
-      }
+      const message = parseRpc(data.toString());
+      if (!message) return;
       // The openDiff call is answered only when the edit is decided in Obsidian. Decided in the
       // terminal instead, Claude Code closes the diff with close_tab.
       const diff = diffRequest(message);

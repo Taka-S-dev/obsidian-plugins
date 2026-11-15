@@ -11,7 +11,7 @@ import {
   closeDiffResult, copilotClosedDiff, copilotDiffRequest, copilotLock, copilotReply, DIFF_CLOSED_RESULT, diffDecisionResult, fileReference,
 } from "./copilot-protocol.ts";
 import { type AssistantBridge, type DiffViewer, newDiffKey } from "./ide-bridge.ts";
-import { type EditorSelection, type Mention, type RpcMessage, selectionChanged } from "./ide-protocol.ts";
+import { type EditorSelection, type Mention, parseRpc, type RpcMessage, selectionChanged } from "./ide-protocol.ts";
 
 /** A larger request is refused: an edit to a note is far smaller. */
 const MAX_BODY = 32 * 1024 * 1024;
@@ -123,12 +123,8 @@ export class CopilotBridge implements AssistantBridge {
       else chunks.push(chunk);
     });
     request.on("end", () => {
-      let message: RpcMessage;
-      try {
-        message = JSON.parse(Buffer.concat(chunks).toString("utf-8")) as RpcMessage;
-      } catch {
-        return this.status(response, 400);
-      }
+      const message = parseRpc(Buffer.concat(chunks).toString("utf-8"));
+      if (!message) return this.status(response, 400);
       const session = request.headers["mcp-session-id"];
       this.receive(message, response, typeof session === "string" ? session : undefined);
     });

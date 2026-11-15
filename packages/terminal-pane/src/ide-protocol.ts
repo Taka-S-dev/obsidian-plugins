@@ -10,6 +10,24 @@ export interface RpcMessage {
   error?: { code: number; message: string };
 }
 
+/**
+ * A JSON-RPC message from its text, or null when the text is not JSON or not a message object:
+ * `null`, a number or an array would otherwise fail later, where the message is read.
+ */
+export function parseRpc(text: string): RpcMessage | null {
+  let value: unknown;
+  try {
+    value = JSON.parse(text);
+  } catch {
+    return null;
+  }
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return null;
+  const { method, id } = value as { method?: unknown; id?: unknown };
+  if (method !== undefined && typeof method !== "string") return null;
+  if (id !== undefined && id !== null && typeof id !== "string" && typeof id !== "number") return null;
+  return value as RpcMessage;
+}
+
 /** What Claude Code reads from ~/.claude/ide/<port>.lock to find and authenticate to the editor. */
 export function lockFile(pid: number, workspaceFolder: string, authToken: string, windows: boolean): Record<string, unknown> {
   return {
