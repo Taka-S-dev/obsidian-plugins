@@ -34,6 +34,11 @@ secrets.*
 credentials.*
 node_modules/
 
+# Code is never a secret, whatever its name (tests/credentials.test.ts, src/secrets.ts).
+!/packages/*/src/**/*.ts
+!/packages/*/tests/**/*.ts
+!/packages/*/tests/**/*.mjs
+
 # Source and test folders hold code; notes kept next to it stay local.
 /packages/*/src/**/*.md
 /packages/*/tests/*.md
