@@ -17,3 +17,24 @@ export function readOsc9(data: string): Osc9 {
 export function isOsc777Notify(data: string): boolean {
   return data.split(";")[0] === "notify";
 }
+
+/**
+ * iTerm2's OSC 1337 `RequestAttention`: `no` withdraws an earlier request, so a program can clear
+ * the mark once nothing waits for the user any more; `yes` and `once` ask for attention, and so
+ * does `fireworks` here, which iTerm2 shows as fireworks at the cursor. Undefined for OSC 1337's
+ * other uses (`SetMark`, `File=` and so on).
+ */
+export function readRequestAttention(data: string): boolean | undefined {
+  const match = /^RequestAttention=(\w+)$/.exec(data);
+  if (!match) return undefined;
+  switch (match[1]) {
+    case "no":
+      return false;
+    case "yes":
+    case "once":
+    case "fireworks":
+      return true;
+    default:
+      return undefined;
+  }
+}

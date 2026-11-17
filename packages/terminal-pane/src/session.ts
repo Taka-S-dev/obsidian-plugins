@@ -9,7 +9,7 @@ import { WebLinksAddon } from "@xterm/addon-web-links";
 import { WebglAddon } from "@xterm/addon-webgl";
 import { lstatSync } from "node:fs";
 import { release } from "node:os";
-import { isOsc777Notify, readOsc9 } from "./attention.ts";
+import { isOsc777Notify, readOsc9, readRequestAttention } from "./attention.ts";
 import { programTitle, tabTitle } from "./tab-title.ts";
 import type { Change } from "./changes.ts";
 import { findExecutable, launchCommand, splitCommandLine, type CommandLine } from "./command-line.ts";
@@ -131,7 +131,10 @@ export class TerminalSession {
   private hintEl: HTMLElement | null = null;
   private readonly search = new SearchAddon();
   status: SessionStatus = "idle";
-  /** Set when the program asked for attention; cleared by a key or click in the terminal. */
+  /**
+   * Set when the program asked for attention; cleared by a key or click in the terminal, or when
+   * the program withdraws the request.
+   */
   attention = false;
   /** Called when the title, status or attention mark changes, so the tab can be redrawn. */
   onChange: () => void = () => {};
@@ -181,6 +184,13 @@ export class TerminalSession {
     });
     term.parser.registerOscHandler(777, (data) => {
       if (isOsc777Notify(data)) this.onAttention();
+      return true;
+    });
+    term.parser.registerOscHandler(1337, (data) => {
+      const request = readRequestAttention(data);
+      if (request === undefined) return false;
+      if (request) this.onAttention();
+      else this.setAttention(false);
       return true;
     });
     // Not on focus: Obsidian gives the terminal its focus back whenever its window comes to the

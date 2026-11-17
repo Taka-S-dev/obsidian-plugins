@@ -29,6 +29,17 @@ function obsidianWindow(): { flashFrame(flag: boolean): void } | undefined {
   }
 }
 
+/**
+ * Panes that set the taskbar button flashing and still carry a mark. The button is shared by every
+ * pane in the window, so it stops only once none is left.
+ */
+const flashingPanes = new Set<object>();
+
+function stopFlashing(pane: object): void {
+  if (!flashingPanes.delete(pane) || flashingPanes.size > 0) return;
+  obsidianWindow()?.flashFrame(false);
+}
+
 /** What the view saves in the workspace layout, so its tabs come back after a restart. */
 interface SavedState {
   sessions: string[];
@@ -142,7 +153,10 @@ export class TerminalView extends ItemView {
     const statusBar = document.body.querySelector<HTMLElement>(".status-bar");
     if (statusBar) this.observer.observe(statusBar);
     this.registerEvent(this.app.workspace.on("layout-change", () => this.reserveStatusBar()));
-    this.registerDomEvent(window, "focus", () => obsidianWindow()?.flashFrame(false));
+    this.registerDomEvent(window, "focus", () => {
+      flashingPanes.clear();
+      obsidianWindow()?.flashFrame(false);
+    });
     this.registerEvent(this.app.workspace.on("css-change", () => this.applyAppearance()));
     const onFonts = () => { for (const session of this.sessions) session.fontsChanged(); };
     document.fonts.addEventListener("loadingdone", onFonts);
@@ -163,6 +177,7 @@ export class TerminalView extends ItemView {
   async onClose(): Promise<void> {
     this.observer?.disconnect();
     tabHeaderEl(this.leaf)?.removeClass("terminal-pane-attention");
+    stopFlashing(this);
     for (const session of this.sessions) session.dispose();
     this.sessions = [];
     this.current = null;
@@ -269,7 +284,10 @@ export class TerminalView extends ItemView {
     const inBackground = !document.hasFocus();
     if (!inBackground && session.hasFocus()) return;
     session.setAttention(true);
-    if (inBackground) obsidianWindow()?.flashFrame(true);
+    if (inBackground) {
+      obsidianWindow()?.flashFrame(true);
+      flashingPanes.add(this);
+    }
   }
 
   // Notes changed by the terminal's programs
@@ -503,7 +521,10 @@ export class TerminalView extends ItemView {
   private renderTabs(): void {
     // Obsidian's own tab for this pane carries the mark too: the pane's tab row is out of sight
     // while another note's tab is open or the sidebar shows another view.
-    tabHeaderEl(this.leaf)?.toggleClass("terminal-pane-attention", this.sessions.some((s) => s.attention));
+    const marked = this.sessions.some((s) => s.attention);
+    tabHeaderEl(this.leaf)?.toggleClass("terminal-pane-attention", marked);
+    // A mark withdrawn by its program also stops the taskbar flash, unless another pane still has one.
+    if (!marked) stopFlashing(this);
     const tabsEl = this.tabsEl;
     if (!tabsEl) return;
     // With one terminal the row only repeats its name; its buttons are also commands.

@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { isOsc777Notify, readOsc9 } from "../src/attention.ts";
+import { isOsc777Notify, readOsc9, readRequestAttention } from "../src/attention.ts";
 
 test("OSC 9 is a notification unless it is the 9;4 progress form", () => {
   assert.deepEqual(readOsc9("Claude is waiting for your input"), { kind: "notify" });
@@ -19,4 +19,17 @@ test("OSC 777 counts only its notify form", () => {
   assert.equal(isOsc777Notify("notify;Build;done"), true);
   assert.equal(isOsc777Notify("notify"), true);
   assert.equal(isOsc777Notify("preexec"), false);
+});
+
+test("OSC 1337 RequestAttention=no withdraws the request, and its other values ask", () => {
+  assert.equal(readRequestAttention("RequestAttention=no"), false);
+  assert.equal(readRequestAttention("RequestAttention=yes"), true);
+  assert.equal(readRequestAttention("RequestAttention=once"), true);
+  assert.equal(readRequestAttention("RequestAttention=fireworks"), true);
+});
+
+test("OSC 1337's other uses are left to other handlers", () => {
+  assert.equal(readRequestAttention("SetMark"), undefined);
+  assert.equal(readRequestAttention("File=name=a.png:AAAA"), undefined);
+  assert.equal(readRequestAttention("RequestAttention=maybe"), undefined);
 });

@@ -80,7 +80,7 @@ Claude Code and GitHub Copilot CLI started in the terminal connect to Obsidian t
 
 ### Notifications
 
-When a program finishes replying while you are not typing in its terminal, its tab gets a blinking orange dot and an orange title, and so does Obsidian's own tab for the pane, which stays in sight while another note is open. The mark stays until you switch to the terminal's tab, or click or type in it. If Obsidian is in the background, its taskbar button flashes too. No sound plays and nothing pops up.
+When a program finishes replying while you are not typing in its terminal, its tab gets a blinking orange dot and an orange title, and so does Obsidian's own tab for the pane, which stays in sight while another note is open. The mark stays until you switch to the terminal's tab, or click or type in it, or the program withdraws it with `OSC 1337;RequestAttention=no` (as in iTerm2), for example once what it was waiting for has been dealt with elsewhere. If Obsidian is in the background, its taskbar button flashes too. No sound plays and nothing pops up.
 
 A reply counts as finished when:
 
