@@ -101,14 +101,20 @@ export default class Secretary extends Plugin {
 
     // Both notes are cheap to read, so edits (by hand or by an assistant) show up right away.
     const watched = (path: string) => path === this.inboxPath() || path === this.remindersPath();
+    // A due date added or changed in any other watched note shows up a moment after it is saved;
+    // only that note is read again (see collectDueTasks), and the wait gathers a burst of saves.
+    const holdsDueDates = (path: string) =>
+      this.settings.tasksEnabled && path.endsWith(".md") && (!this.settings.tasksFolder || path.startsWith(`${this.settings.tasksFolder}/`));
     const onChange = (file: TAbstractFile) => {
       if (watched(file.path)) void this.tick();
+      else if (holdsDueDates(file.path)) this.queueSoon();
     };
     this.registerEvent(this.app.vault.on("modify", onChange));
     this.registerEvent(this.app.vault.on("create", onChange));
     this.registerEvent(this.app.vault.on("delete", onChange));
     this.registerEvent(this.app.vault.on("rename", (file, oldPath) => {
       if (watched(file.path) || watched(oldPath)) void this.tick();
+      else if (holdsDueDates(file.path) || holdsDueDates(oldPath)) this.queueSoon();
     }));
 
     this.app.workspace.onLayoutReady(() => {
