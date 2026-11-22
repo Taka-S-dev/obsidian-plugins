@@ -23,7 +23,7 @@ The interface follows Obsidian's language: Japanese when Obsidian is in Japanese
 The row above the terminal shows the tabs.
 
 - **+** opens a tab with the default profile; **▾** lists the profiles to choose from.
-- Click a tab to show it. Close it with its **×**, a middle click, or **Close** in its right-click menu, which also has **Restart**. A tab shows the title the program in it sets, such as Claude Code's, when it sets one; double-click it, or use **Rename** in its menu, to give it a name that stays. With a tab focused, Left and Right move between tabs, Enter or Space shows one, and Delete closes it.
+- Click a tab to show it. Close it with its **×**, a middle click, or **Close** in its right-click menu, which also has **Restart**. A tab shows the title the program in it sets, such as Claude Code's, when it sets one; double-click it, or use **Rename** in its menu, to give it a name that stays. Drag a tab along the row to change the order, which is kept with the workspace. With a tab focused, Left and Right move between tabs, Shift+Left and Shift+Right move the tab itself, Enter or Space shows one, and Delete closes it.
 - Closing the last tab closes the pane.
 - When a program ends, its tab is dimmed and the terminal says so. Press Enter in it to start the program again.
 

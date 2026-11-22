@@ -5,9 +5,13 @@ import { type Change, ChangeList } from "./changes.ts";
 import { tabHeaderEl } from "./obsidian-internals.ts";
 import { askText } from "./paste-confirm.ts";
 import { type SessionContext, TerminalSession } from "./session.ts";
+import { dropsBefore, moveBefore } from "./tab-order.ts";
 import { searchColorsFor } from "./theme.ts";
 
 export const VIEW_TYPE = "terminal-pane";
+
+/** The drag data type of a tab being moved within the row. */
+const TAB_DRAG_TYPE = "application/x-terminal-pane-tab";
 
 /** A note saved this soon after typing in it is taken to be the editor's own save. */
 const TYPING_GRACE_MS = 5000;
@@ -73,6 +77,8 @@ export class TerminalView extends ItemView {
   private readonly typedAt = new Map<string, number>();
   /** Set once the first tabs exist, from the saved state or, failing that, the default profile. */
   private populated = false;
+  /** The tab being dragged to a new place in the row, while it is. */
+  private dragged: TerminalSession | null = null;
 
   constructor(leaf: WorkspaceLeaf, private readonly ctx: SessionContext) {
     super(leaf);
@@ -116,6 +122,7 @@ export class TerminalView extends ItemView {
     this.applyTitleBar();
     const bar = this.contentEl.createDiv({ cls: "terminal-pane-bar" });
     this.tabsEl = bar.createDiv({ cls: "terminal-pane-tabs", attr: { role: "tablist" } });
+    this.handleTabDrops(this.tabsEl);
     const actions = bar.createDiv({ cls: "terminal-pane-actions" });
     this.assistantsEl = actions.createDiv({ cls: "terminal-pane-assistants" });
     setIcon(this.assistantsEl.createSpan({ cls: "terminal-pane-assistants-icon" }), "plug-zap");
@@ -132,13 +139,13 @@ export class TerminalView extends ItemView {
 
     // Files dropped on the terminal are typed in as paths, as in VS Code.
     this.registerDomEvent(this.body, "dragover", (event) => {
-      if (!this.current || this.current.status !== "running") return;
+      if (this.dragged || !this.current || this.current.status !== "running") return;
       event.preventDefault();
       if (event.dataTransfer) event.dataTransfer.dropEffect = "copy";
     });
     this.registerDomEvent(this.body, "drop", (event) => {
       const session = this.current;
-      if (!session || session.status !== "running") return;
+      if (this.dragged || !session || session.status !== "running") return;
       event.preventDefault();
       event.stopPropagation();
       const text = this.ctx.dropText(event.dataTransfer);
@@ -539,8 +546,9 @@ export class TerminalView extends ItemView {
           ...(active ? ["is-active"] : []),
           ...(session.status === "exited" ? ["is-exited"] : []),
           ...(session.attention ? ["has-attention"] : []),
+          ...(session === this.dragged ? ["is-dragging"] : []),
         ],
-        attr: { role: "tab", "aria-selected": String(active), tabindex: active ? "0" : "-1" },
+        attr: { role: "tab", "aria-selected": String(active), tabindex: active ? "0" : "-1", draggable: "true" },
       });
       if (session.attention) tab.createSpan({ cls: "terminal-pane-tab-mark", attr: { "aria-label": s.attention } });
       tab.createSpan({ cls: "terminal-pane-tab-title", text: session.title });
@@ -560,15 +568,85 @@ export class TerminalView extends ItemView {
       });
       tab.addEventListener("contextmenu", (event) => this.tabMenu(event, session));
       tab.addEventListener("keydown", (event) => this.tabKey(event, session));
+      tab.addEventListener("dragstart", (event) => {
+        if (!event.dataTransfer) return;
+        this.dragged = session;
+        // A type of its own, so nothing else (a note, the terminal) takes the tab for dropped text.
+        event.dataTransfer.setData(TAB_DRAG_TYPE, session.profileId);
+        event.dataTransfer.effectAllowed = "move";
+        tab.addClass("is-dragging");
+      });
       if (active) tab.scrollIntoView({ block: "nearest", inline: "nearest" });
     }
   }
 
-  /** Arrow keys move between tabs, Enter or Space shows one, Delete closes it. */
+  /**
+   * Drops on the tab row move the dragged tab. The row listens rather than each tab, since a
+   * program's new title redraws the tabs, and with them their listeners, in the middle of a drag.
+   */
+  private handleTabDrops(tabsEl: HTMLElement): void {
+    const clear = () => {
+      for (const el of Array.from(tabsEl.children)) el.removeClass("drop-before", "drop-after");
+    };
+    /** Where the dragged tab would go: in front of the tab at this index, or at the end. */
+    const target = (event: DragEvent): { before: number; el: Element | null; front: boolean } => {
+      const el = (event.target as Element | null)?.closest?.(".terminal-pane-tab") ?? null;
+      const index = el ? Array.prototype.indexOf.call(tabsEl.children, el) : -1;
+      if (!el || index < 0) return { before: this.sessions.length, el: tabsEl.lastElementChild, front: false };
+      const rect = el.getBoundingClientRect();
+      const front = dropsBefore(event.clientX, rect.left, rect.right);
+      return { before: front ? index : index + 1, el, front };
+    };
+    this.registerDomEvent(tabsEl, "dragover", (event) => {
+      if (!this.dragged) return;
+      event.preventDefault();
+      if (event.dataTransfer) event.dataTransfer.dropEffect = "move";
+      const { el, front } = target(event);
+      clear();
+      el?.addClass(front ? "drop-before" : "drop-after");
+    });
+    this.registerDomEvent(tabsEl, "dragleave", (event) => {
+      if (!tabsEl.contains(event.relatedTarget as Node | null)) clear();
+    });
+    this.registerDomEvent(tabsEl, "drop", (event) => {
+      const session = this.dragged;
+      if (!session) return;
+      event.preventDefault();
+      this.moveTab(session, target(event).before);
+    });
+    // On the document: the dragged tab may have been redrawn, and a new element never sees dragend.
+    this.registerDomEvent(document, "dragend", () => {
+      if (!this.dragged) return;
+      this.dragged = null;
+      this.renderTabs();
+    });
+  }
+
+  /** Puts the tab in front of the tab at `before` (or last), and keeps the order in the layout. */
+  private moveTab(session: TerminalSession, before: number): void {
+    const sessions = moveBefore(this.sessions, this.sessions.indexOf(session), before);
+    this.dragged = null;
+    if (sessions !== this.sessions) {
+      this.sessions = [...sessions];
+      this.app.workspace.requestSaveLayout();
+    }
+    this.renderTabs();
+  }
+
+  /**
+   * Arrow keys move between tabs, and with Shift move the tab itself; Enter or Space shows one,
+   * Delete closes it.
+   */
   private tabKey(event: KeyboardEvent, session: TerminalSession): void {
     const index = this.sessions.indexOf(session);
     const focusTab = (i: number) => (this.tabsEl?.children[i] as HTMLElement | undefined)?.focus();
-    if (event.key === "ArrowRight" || event.key === "ArrowLeft") {
+    if (event.shiftKey && (event.key === "ArrowRight" || event.key === "ArrowLeft")) {
+      event.preventDefault();
+      const to = index + (event.key === "ArrowRight" ? 1 : -1);
+      if (to < 0 || to >= this.sessions.length) return;
+      this.moveTab(session, event.key === "ArrowRight" ? to + 1 : to);
+      focusTab(to);
+    } else if (event.key === "ArrowRight" || event.key === "ArrowLeft") {
       event.preventDefault();
       focusTab((index + (event.key === "ArrowRight" ? 1 : -1) + this.sessions.length) % this.sessions.length);
     } else if (event.key === "Enter" || event.key === " ") {

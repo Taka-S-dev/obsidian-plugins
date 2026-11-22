@@ -48,6 +48,19 @@
   color: var(--text-normal);
 }
 
+/* A tab being dragged, and the edge it would be dropped at. */
+.terminal-pane-tab.is-dragging {
+  opacity: 0.5;
+}
+
+.terminal-pane-tab.drop-before {
+  box-shadow: inset 2px 0 0 var(--interactive-accent);
+}
+
+.terminal-pane-tab.drop-after {
+  box-shadow: inset -2px 0 0 var(--interactive-accent);
+}
+
 .terminal-pane-tab:focus-visible {
   box-shadow: 0 0 0 2px var(--background-modifier-border-focus);
   outline: none;
