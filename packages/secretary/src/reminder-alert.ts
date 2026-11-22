@@ -1,0 +1,128 @@
+import { App, ButtonComponent, Modal } from "obsidian";
+import type { Strings } from "./i18n.ts";
+import type { Reminder } from "./reminders.ts";
+
+export const SNOOZE_MINUTES = [10, 60] as const;
+
+export interface ReminderAlertActions {
+  /** Checks the reminder off. Resolves to false when its line could not be updated. */
+  done(r: Reminder): Promise<boolean>;
+  /** Moves the reminder later by that many minutes. Resolves to false when its line could not be updated. */
+  snooze(r: Reminder, minutes: number): Promise<boolean>;
+  /** Moves the reminder to the same time tomorrow. */
+  tomorrow(r: Reminder): Promise<boolean>;
+  /** Asks for a date and time (and the text) in the reminder modal; null when that is cancelled. */
+  pick(r: Reminder): Promise<boolean | null>;
+  /** The alert closed with these reminders still in it. */
+  closed(left: Reminder[]): void;
+}
+
+/**
+ * The reminders that are due, in the middle of the screen until each is dealt with: done, or
+ * snoozed. Reminders that come due while it is open join it. Closing it (OK, Esc, ×) counts the
+ * ones left as done, since they have been seen.
+ */
+export class ReminderAlert extends Modal {
+  private readonly left = new Map<Reminder, HTMLElement>();
+  private listEl!: HTMLElement;
+  /** Reminders handed in before the alert was drawn. */
+  private pending: Reminder[];
+
+  constructor(
+    app: App,
+    private s: Strings,
+    private today: string,
+    first: Reminder[],
+    private actions: ReminderAlertActions,
+  ) {
+    super(app);
+    this.pending = first;
+  }
+
+  onOpen(): void {
+    const { contentEl } = this;
+    contentEl.addClass("secretary-alert");
+    this.titleEl.setText(this.s.alert.title);
+    this.keepOpenOnOutsideClick();
+    this.listEl = contentEl.createDiv();
+    for (const r of this.pending) this.addRow(r);
+    this.pending = [];
+    const footer = contentEl.createDiv({ cls: "modal-button-container" });
+    new ButtonComponent(footer).setButtonText(this.s.alert.ok).setCta().onClick(() => this.close());
+  }
+
+  /** Adds reminders that came due while the alert is open. */
+  add(reminders: Reminder[]): void {
+    if (!this.listEl) {
+      this.pending.push(...reminders);
+      return;
+    }
+    for (const r of reminders) this.addRow(r);
+  }
+
+  onClose(): void {
+    const left = [...this.left.keys(), ...this.pending];
+    this.contentEl.empty();
+    this.actions.closed(left);
+  }
+
+  private addRow(r: Reminder): void {
+    const a = this.s.alert;
+    const row = this.listEl.createDiv({ cls: "secretary-alert-item" });
+    row.createDiv({ cls: "secretary-alert-time", text: r.date === this.today ? r.time : a.late(r.date, r.time) });
+    row.createDiv({ cls: "secretary-alert-text", text: r.text });
+    const buttons = row.createDiv({ cls: "secretary-alert-buttons" });
+    const error = row.createDiv({ cls: "secretary-alert-error" });
+    const all: ButtonComponent[] = [];
+    const act = async (run: () => Promise<boolean | null>) => {
+      all.forEach((b) => b.setDisabled(true));
+      error.setText("");
+      let ok: boolean | null = false;
+      try {
+        ok = await run();
+      } catch (e) {
+        console.error("[secretary] could not update a reminder", e);
+      }
+      if (ok === null) {
+        all.forEach((b) => b.setDisabled(false));
+        return;
+      }
+      if (!ok) {
+        // Kept in the alert so it can be tried again, or the note edited by hand.
+        error.setText(a.failed);
+        all.forEach((b) => b.setDisabled(false));
+        return;
+      }
+      row.remove();
+      this.left.delete(r);
+      if (this.left.size === 0) this.close();
+    };
+    all.push(new ButtonComponent(buttons).setButtonText(a.done).setCta().onClick(() => void act(() => this.actions.done(r))));
+    for (const minutes of SNOOZE_MINUTES) {
+      all.push(new ButtonComponent(buttons).setButtonText(a.snooze(minutes)).onClick(() => void act(() => this.actions.snooze(r, minutes))));
+    }
+    all.push(new ButtonComponent(buttons).setButtonText(a.tomorrow).setTooltip(a.tomorrowTooltip(r.time)).onClick(() => void act(() => this.actions.tomorrow(r))));
+    all.push(new ButtonComponent(buttons).setButtonText(a.pick).onClick(() => void act(() => this.actions.pick(r))));
+    this.left.set(r, row);
+  }
+
+  /**
+   * Obsidian closes a modal when its backdrop is clicked, so a stray click would dismiss the alert
+   * unseen. A click outside shakes it instead; it closes with OK, × or Esc.
+   */
+  private keepOpenOnOutsideClick(): void {
+    const backdrop = this.containerEl.querySelector(".modal-bg");
+    if (!backdrop) return;
+    const stop = (event: Event) => {
+      if (event.target !== backdrop) return;
+      event.stopPropagation();
+      if (event.type !== "click") return;
+      this.modalEl.removeClass("secretary-nudge");
+      // Reading offsetWidth restarts the animation when the backdrop is clicked again.
+      void this.modalEl.offsetWidth;
+      this.modalEl.addClass("secretary-nudge");
+    };
+    // Capture on the container runs before the backdrop's own listener.
+    for (const type of ["pointerdown", "mousedown", "click"]) this.containerEl.addEventListener(type, stop, true);
+  }
+}

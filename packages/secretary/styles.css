@@ -1,0 +1,230 @@
+.secretary-line-hint {
+  margin-bottom: var(--size-4-2);
+  color: var(--text-muted);
+  font-size: var(--font-ui-small);
+}
+
+.secretary-line-input {
+  width: 100%;
+}
+
+/* How the line will be taken, under the field; muted red while it cannot be used yet. */
+.secretary-line-preview {
+  min-height: 1.5em;
+  margin-top: var(--size-4-1);
+  color: var(--text-muted);
+  font-size: var(--font-ui-small);
+}
+
+.secretary-line-preview.is-invalid {
+  color: var(--text-error);
+}
+
+.secretary-reminder-text {
+  width: 100%;
+}
+
+/* The reminder alert: the text is what matters, the time a small label above it. */
+.secretary-alert-item {
+  padding: var(--size-4-2) 0;
+  border-bottom: var(--border-width) solid var(--background-modifier-border);
+}
+
+.secretary-alert-time {
+  color: var(--text-muted);
+  font-size: var(--font-ui-small);
+}
+
+.secretary-alert-text {
+  margin: var(--size-2-1) 0 var(--size-4-2);
+  font-size: var(--font-ui-large);
+  font-weight: var(--font-semibold);
+  overflow-wrap: anywhere;
+}
+
+.secretary-alert-buttons {
+  display: flex;
+  gap: var(--size-4-2);
+}
+
+.secretary-alert-error {
+  margin-top: var(--size-4-1);
+  color: var(--text-error);
+  font-size: var(--font-ui-small);
+}
+
+/* A click outside the alert does not close it; a short shake shows that it is waiting. */
+.modal.secretary-nudge {
+  animation: secretary-nudge 0.3s ease-in-out;
+}
+
+@keyframes secretary-nudge {
+  25% { transform: translateX(-6px); }
+  75% { transform: translateX(6px); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .modal.secretary-nudge {
+    animation: none;
+    box-shadow: 0 0 0 2px var(--interactive-accent);
+  }
+}
+
+.secretary-panel {
+  padding: var(--size-4-2) var(--size-4-3);
+}
+
+/* Sections are set apart by a rule and space, and each header by a line under it, so the header's
+   buttons read as belonging to that section. */
+.secretary-section {
+  margin-bottom: var(--size-4-3);
+}
+
+.secretary-section + .secretary-section {
+  padding-top: var(--size-4-3);
+  border-top: var(--border-width) solid var(--background-modifier-border-hover);
+}
+
+.secretary-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--size-4-2);
+  margin-bottom: var(--size-4-1);
+}
+
+.secretary-title {
+  display: flex;
+  align-items: center;
+  gap: var(--size-4-1);
+  font-weight: var(--font-semibold);
+}
+
+.secretary-title-icon {
+  display: flex;
+  color: var(--text-muted);
+}
+
+.secretary-title-icon svg {
+  width: var(--icon-s);
+  height: var(--icon-s);
+}
+
+.secretary-actions {
+  display: flex;
+  gap: var(--size-4-1);
+}
+
+.secretary-actions button {
+  font-size: var(--font-ui-smaller);
+  padding: 0 var(--size-4-2);
+  height: auto;
+}
+
+/* Buttons in a row are as small as the header's, so they do not outweigh the text. */
+.secretary-row button {
+  font-size: var(--font-ui-smaller);
+  padding: 0 var(--size-4-2);
+  height: auto;
+}
+
+.secretary-row {
+  padding: var(--size-2-1) 0;
+  border-bottom: var(--border-width) solid var(--background-modifier-border);
+  font-size: var(--font-ui-small);
+  overflow-wrap: anywhere;
+}
+
+.secretary-time {
+  font-variant-numeric: tabular-nums;
+  color: var(--text-accent);
+  margin-right: var(--size-4-2);
+}
+
+.secretary-empty,
+.secretary-note {
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+  padding: var(--size-2-1) 0;
+}
+
+.secretary-footer {
+  margin-top: var(--size-4-2);
+}
+
+.secretary-bulletin {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--size-4-2);
+}
+
+.secretary-bulletin-text {
+  flex: 1;
+  min-width: 0;
+}
+
+/* An unread notice: bold, with a bar in the color of the dot on the panel's tab. */
+.secretary-bulletin.is-unread {
+  box-shadow: inset 2px 0 0 var(--color-purple);
+  padding-left: var(--size-4-2);
+}
+
+.secretary-bulletin.is-unread .secretary-multiline {
+  font-weight: var(--font-semibold);
+}
+
+.secretary-row-actions {
+  display: flex;
+  flex: 0 0 auto;
+  gap: var(--size-4-1);
+}
+
+.secretary-meta {
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+}
+
+.secretary-multiline {
+  white-space: pre-wrap;
+}
+
+.secretary-warning {
+  color: var(--text-warning);
+}
+
+.secretary-reminder {
+  display: flex;
+  align-items: center;
+  gap: var(--size-4-2);
+}
+
+.secretary-reminder-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.secretary-clickable {
+  cursor: pointer;
+}
+
+.secretary-clickable:hover {
+  background-color: var(--background-modifier-hover);
+}
+
+/* Unread notices: a steady dot on the panel's own tab, in the tab bar or the sidebar's tab strip. */
+.workspace-tab-header.secretary-unread .workspace-tab-header-inner-icon {
+  position: relative;
+}
+
+.workspace-tab-header.secretary-unread .workspace-tab-header-inner-icon::after {
+  content: "";
+  position: absolute;
+  top: -3px;
+  right: -4px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: var(--color-purple);
+  /* A ring in the tab's color keeps the dot apart from the icon under it. */
+  box-shadow: 0 0 0 2px var(--tab-background-active, var(--background-primary));
+}

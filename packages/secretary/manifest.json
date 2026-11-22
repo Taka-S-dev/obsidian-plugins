@@ -1,0 +1,9 @@
+{
+  "id": "secretary",
+  "name": "Secretary",
+  "version": "0.1.0",
+  "minAppVersion": "1.8.7",
+  "description": "A secretary inside Obsidian: an inbox, reminders, notices from other programs through a queue folder, a side panel, and a heartbeat that announces them.",
+  "author": "Taka-S-dev",
+  "isDesktopOnly": true
+}
