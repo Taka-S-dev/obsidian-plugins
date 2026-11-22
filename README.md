@@ -9,6 +9,7 @@ A collection of Obsidian plugins, one package per plugin under `packages/`. Each
 | [path-links](packages/path-links/README.md) | Paste Windows paths as standard Markdown links, then open them or copy the original path |
 | [dayplanner-notify](packages/dayplanner-notify/README.md) | Brings Obsidian to the front with a sound when a Day Planner task starts, with an alert that can postpone it |
 | [terminal-pane](packages/terminal-pane/README.md) | Runs a shell, GitHub Copilot CLI or your own terminal programs in a pane with tabs, started in the vault folder |
+| [secretary](packages/secretary/README.md) | A secretary inside Obsidian: an inbox, reminders and notices that other programs can send through a queue folder, a side panel, and a heartbeat that announces them |
 
 ## Setup
 
