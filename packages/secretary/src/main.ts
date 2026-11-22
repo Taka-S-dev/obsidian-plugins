@@ -36,6 +36,12 @@ const SUMMARY_MS = 10_000;
 const QUEUE_BATCH = 50;
 /** fs.watch fires several times per file; wait this long after the last event. */
 const WATCH_DEBOUNCE_MS = 300;
+/**
+ * Obsidian saves a note every couple of seconds while it is typed in. A reminder line being typed
+ * with a time already past would go off half-written, so none goes off until the reminders note
+ * has been left alone this long.
+ */
+const EDIT_QUIET_MS = 8_000;
 
 export default class Secretary extends Plugin {
   settings: SecretarySettings = { ...DEFAULT_SETTINGS };
@@ -56,6 +62,9 @@ export default class Secretary extends Plugin {
   private statusEl: HTMLElement | null = null;
   private watcher: FSWatcher | null = null;
   private watchTimer: number | null = null;
+  /** When the reminders note last changed, and the check waiting for it to settle. */
+  private remindersEditedAt = 0;
+  private settleTimer: number | null = null;
   /** The queue folder being watched and drained; the setting takes effect once it is applied. */
   private queueInUse: string | null = null;
   /** Notes a queued message could not be written to, so the failure is announced once, not every minute. */
@@ -106,6 +115,7 @@ export default class Secretary extends Plugin {
     const holdsDueDates = (path: string) =>
       this.settings.tasksEnabled && path.endsWith(".md") && (!this.settings.tasksFolder || path.startsWith(`${this.settings.tasksFolder}/`));
     const onChange = (file: TAbstractFile) => {
+      if (file.path === this.remindersPath()) this.remindersEditedAt = Date.now();
       if (watched(file.path)) void this.tick();
       else if (holdsDueDates(file.path)) this.queueSoon();
     };
@@ -221,6 +231,8 @@ export default class Secretary extends Plugin {
     this.watcher = null;
     if (this.watchTimer !== null) window.clearTimeout(this.watchTimer);
     this.watchTimer = null;
+    if (this.settleTimer !== null) window.clearTimeout(this.settleTimer);
+    this.settleTimer = null;
   }
 
   private queueSoon(): void {
@@ -345,7 +357,18 @@ export default class Secretary extends Plugin {
     this.renderPanels();
 
     if (this.announced.date !== today) this.announced = { date: today, keys: [] };
-    const fired = await this.fireReminders(dueReminders(snap.reminders ?? [], now), today);
+    // The panel shows an edit at once; the alert waits until the reminders note has settled.
+    const editedAgo = Date.now() - this.remindersEditedAt;
+    let fired = false;
+    if (editedAgo >= EDIT_QUIET_MS) {
+      fired = await this.fireReminders(dueReminders(snap.reminders ?? [], now), today);
+    } else {
+      if (this.settleTimer !== null) window.clearTimeout(this.settleTimer);
+      this.settleTimer = window.setTimeout(() => {
+        this.settleTimer = null;
+        void this.tick();
+      }, EDIT_QUIET_MS - editedAgo + 100);
+    }
     const { next, fresh } = pickNew(this.announced, today, this.report.alerts);
     this.announced = next;
     for (const a of fresh) this.announce(a.title, a.body);
