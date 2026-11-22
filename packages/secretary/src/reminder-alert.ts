@@ -13,14 +13,14 @@ export interface ReminderAlertActions {
   tomorrow(r: Reminder): Promise<boolean>;
   /** Asks for a date and time (and the text) in the reminder modal; null when that is cancelled. */
   pick(r: Reminder): Promise<boolean | null>;
-  /** The alert closed with these reminders still in it. */
-  closed(left: Reminder[]): void;
+  /** The alert closed, possibly with reminders still in it; they stay unchecked. */
+  closed(): void;
 }
 
 /**
  * The reminders that are due, in the middle of the screen until each is dealt with: done, or
- * snoozed. Reminders that come due while it is open join it. Closing it (OK, Esc, ×) counts the
- * ones left as done, since they have been seen.
+ * snoozed. Reminders that come due while it is open join it. Closing it (Close, Esc, ×) leaves the
+ * ones left unchecked; the panel lists them as overdue until they are checked off there.
  */
 export class ReminderAlert extends Modal {
   private readonly left = new Map<Reminder, HTMLElement>();
@@ -61,9 +61,8 @@ export class ReminderAlert extends Modal {
   }
 
   onClose(): void {
-    const left = [...this.left.keys(), ...this.pending];
     this.contentEl.empty();
-    this.actions.closed(left);
+    this.actions.closed();
   }
 
   private addRow(r: Reminder): void {
@@ -108,7 +107,7 @@ export class ReminderAlert extends Modal {
 
   /**
    * Obsidian closes a modal when its backdrop is clicked, so a stray click would dismiss the alert
-   * unseen. A click outside shakes it instead; it closes with OK, × or Esc.
+   * unseen. A click outside shakes it instead; it closes with Close, × or Esc.
    */
   private keepOpenOnOutsideClick(): void {
     const backdrop = this.containerEl.querySelector(".modal-bg");

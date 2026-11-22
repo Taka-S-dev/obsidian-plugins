@@ -1,9 +1,9 @@
 import { ItemView, setIcon, setTooltip, WorkspaceLeaf } from "obsidian";
 import { unread } from "./bulletins.ts";
 import { tabHeaderEl } from "./obsidian-internals.ts";
-import { laterDays, upcomingToday } from "./reminders.ts";
+import { dueReminders, laterDays, upcomingToday } from "./reminders.ts";
 import { classifyDue, type DueTask } from "./tasks.ts";
-import { hm } from "./time.ts";
+import { hm, ymd } from "./time.ts";
 import type Secretary from "./main";
 
 export const PANEL_VIEW = "secretary-panel";
@@ -105,7 +105,9 @@ export class SecretaryPanel extends ItemView {
     }
 
     const reminders = snap?.reminders ?? [];
-    const upcoming = upcomingToday(reminders, now);
+    // Passed but not checked off (waiting in the alert, or its alert was closed elsewhere) first.
+    const passed = dueReminders(reminders, now);
+    const upcoming = [...passed, ...upcomingToday(reminders, now)];
     const c = this.plugin.s.commands;
     const rBody = this.section(root, {
       icon: "alarm-clock",
@@ -121,7 +123,8 @@ export class SecretaryPanel extends ItemView {
     for (const r of upcoming) {
       const row = rBody.createDiv({ cls: "secretary-row secretary-clickable secretary-reminder" });
       const text = row.createDiv({ cls: "secretary-reminder-text" });
-      text.createSpan({ cls: "secretary-time", text: r.time });
+      if (passed.includes(r)) text.createSpan({ cls: "secretary-time secretary-warning", text: t.overdueTag });
+      text.createSpan({ cls: "secretary-time", text: r.date === ymd(now) ? r.time : `${r.date} ${r.time}` });
       text.createSpan({ text: r.text });
       row.addEventListener("click", () => void this.plugin.openReminder(r));
       row.createEl("button", { text: t.done }).addEventListener("click", (event) => {

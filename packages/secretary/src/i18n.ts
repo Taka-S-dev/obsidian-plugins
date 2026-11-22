@@ -22,7 +22,6 @@ const en = {
   reminder: {
     title: (time: string) => `Reminder ${time}`,
     late: (date: string, time: string) => `Reminder (was due ${date} ${time})`,
-    markFailed: "The reminder line changed, so it was not checked off. It will not be announced again today.",
   },
   alert: {
     title: "Reminder",
@@ -33,7 +32,7 @@ const en = {
     tomorrowTooltip: (time: string) => `Tomorrow at ${time}`,
     pick: "Other…",
     pickTitle: "Move the reminder",
-    ok: "OK",
+    ok: "Close",
     failed: "The reminder line changed, so it could not be updated. Edit the reminders note.",
   },
   summary: {
@@ -175,7 +174,6 @@ const ja: Strings = {
   reminder: {
     title: (time) => `リマインダー ${time}`,
     late: (date, time) => `リマインダー（${date} ${time} の分）`,
-    markFailed: "リマインダーの行が変わっていたため、チェックを付けませんでした。今日はもう知らせません。",
   },
   alert: {
     title: "リマインダー",
@@ -186,7 +184,7 @@ const ja: Strings = {
     tomorrowTooltip: (time) => `明日の ${time}`,
     pick: "日時を選ぶ…",
     pickTitle: "リマインダーの日時を変える",
-    ok: "OK",
+    ok: "閉じる",
     failed: "リマインダーの行が変わっていたため、書き換えられませんでした。リマインダーのノートを直してください。",
   },
   summary: {

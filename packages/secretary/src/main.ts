@@ -127,7 +127,6 @@ export default class Secretary extends Plugin {
   onunload(): void {
     this.active = false;
     this.stopWatcher();
-    // Reminders still in the alert stay unchecked; they are shown again the next time.
     this.alert?.close();
     this.alert = null;
   }
@@ -516,15 +515,10 @@ export default class Secretary extends Plugin {
               () => resolve(null),
             ).open();
           }),
-        // Closing the alert counts what is left as seen, so it is checked off.
-        closed: (left) => {
+        // Closing the alert leaves what is left unchecked: it stays in the panel, marked overdue,
+        // to be checked off there once it is done.
+        closed: () => {
           this.alert = null;
-          if (!this.active) return;
-          void (async () => {
-            for (const r of left) {
-              if (!(await this.updateReminder(r, (content) => markDone(content, r)))) new Notice(this.s.reminder.markFailed, NOTICE_MS);
-            }
-          })();
         },
       });
       this.alert.open();
