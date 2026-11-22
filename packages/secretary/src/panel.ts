@@ -1,4 +1,4 @@
-import { ItemView, setIcon, setTooltip, WorkspaceLeaf } from "obsidian";
+import { ItemView, Menu, setIcon, setTooltip, WorkspaceLeaf } from "obsidian";
 import { unread } from "./bulletins.ts";
 import { tabHeaderEl } from "./obsidian-internals.ts";
 import { dueReminders, laterDays, upcomingToday } from "./reminders.ts";
@@ -119,14 +119,26 @@ export class SecretaryPanel extends ItemView {
       ],
     });
     if (upcoming.length === 0) rBody.createDiv({ cls: "secretary-empty", text: t.noReminders });
-    // Clicking a reminder opens its line, to change or delete it there; Done checks it off early.
+    // Clicking a reminder edits its date, time and text; Ctrl+click, or its menu, opens its line in
+    // the note (to delete it there). Done checks it off.
     for (const r of upcoming) {
       const row = rBody.createDiv({ cls: "secretary-row secretary-clickable secretary-reminder" });
       const text = row.createDiv({ cls: "secretary-reminder-text" });
       if (passed.includes(r)) text.createSpan({ cls: "secretary-time secretary-warning", text: t.overdueTag });
       text.createSpan({ cls: "secretary-time", text: r.date === ymd(now) ? r.time : `${r.date} ${r.time}` });
       text.createSpan({ text: r.text });
-      row.addEventListener("click", () => void this.plugin.openReminder(r));
+      row.addEventListener("click", (event) => {
+        if (event.ctrlKey || event.metaKey) void this.plugin.openReminder(r);
+        else this.plugin.editReminder(r);
+      });
+      setTooltip(row, t.reminderTip);
+      row.addEventListener("contextmenu", (event) => {
+        const menu = new Menu();
+        menu.addItem((i) => i.setTitle(t.edit).setIcon("pencil").onClick(() => this.plugin.editReminder(r)));
+        menu.addItem((i) => i.setTitle(t.openLine).setIcon("file-text").onClick(() => void this.plugin.openReminder(r)));
+        menu.addItem((i) => i.setTitle(t.done).setIcon("check").onClick(() => void this.plugin.completeReminder(r)));
+        menu.showAtMouseEvent(event);
+      });
       row.createEl("button", { text: t.done }).addEventListener("click", (event) => {
         event.stopPropagation();
         void this.plugin.completeReminder(r);
@@ -146,12 +158,24 @@ export class SecretaryPanel extends ItemView {
       ],
     });
     if (inbox.length === 0) iBody.createDiv({ cls: "secretary-empty", text: t.emptyInbox });
-    // Clicking an item opens its line, as with due dates and reminders. Each can also become a
-    // reminder (it then leaves the inbox) or be checked off as dealt with.
+    // As with reminders: clicking an item edits its text, Ctrl+click or its menu opens its line.
+    // Each can also become a reminder (it then leaves the inbox) or be checked off as dealt with.
     for (const item of inbox) {
       const row = iBody.createDiv({ cls: "secretary-row secretary-clickable secretary-reminder" });
       row.createDiv({ cls: "secretary-reminder-text", text: item });
-      row.addEventListener("click", () => void this.plugin.openInboxItem(item));
+      row.addEventListener("click", (event) => {
+        if (event.ctrlKey || event.metaKey) void this.plugin.openInboxItem(item);
+        else this.plugin.editInboxItem(item);
+      });
+      setTooltip(row, t.inboxTip);
+      row.addEventListener("contextmenu", (event) => {
+        const menu = new Menu();
+        menu.addItem((i) => i.setTitle(t.edit).setIcon("pencil").onClick(() => this.plugin.editInboxItem(item)));
+        menu.addItem((i) => i.setTitle(t.openLine).setIcon("file-text").onClick(() => void this.plugin.openInboxItem(item)));
+        menu.addItem((i) => i.setTitle(t.toReminder).setIcon("alarm-clock").onClick(() => this.plugin.remindFromInbox(item)));
+        menu.addItem((i) => i.setTitle(t.done).setIcon("check").onClick(() => void this.plugin.completeInboxItem(item)));
+        menu.showAtMouseEvent(event);
+      });
       const button = (text: string, run: () => void) =>
         row.createEl("button", { text }).addEventListener("click", (event) => {
           event.stopPropagation();

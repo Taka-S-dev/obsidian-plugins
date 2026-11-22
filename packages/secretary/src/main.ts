@@ -15,7 +15,7 @@ import {
 } from "./bulletins.ts";
 import { currentSlot, evaluate, loadAnnounced, pickNew, type Announced, type Report, type Snapshot } from "./checks.ts";
 import { stringsFor, type Strings } from "./i18n.ts";
-import { appendEntry, checkItem, folderOf, formatEntry, inboxItems, openItems, removeItem, withoutStamp, type InboxItem } from "./inbox.ts";
+import { appendEntry, checkItem, editItem, folderOf, formatEntry, inboxItems, openItems, removeItem, withoutStamp, type InboxItem } from "./inbox.ts";
 import { LineModal } from "./line-modal.ts";
 import { ReminderModal } from "./reminder-modal.ts";
 import { ReminderAlert } from "./reminder-alert.ts";
@@ -423,6 +423,31 @@ export default class Secretary extends Plugin {
     await this.app.workspace.getLeaf(false).openFile(file, item ? { eState: { line: item.line } } : undefined);
   }
 
+  /** Changes a reminder's date, time or text from the panel, in the reminder modal. */
+  editReminder(r: Reminder): void {
+    const c = this.s.capture;
+    const start = { title: c.editTitle, submit: c.save, text: r.text, date: r.date, time: r.time };
+    new ReminderModal(
+      this.app,
+      c,
+      async (date, time, text) => {
+        let ok = false;
+        try {
+          ok = await this.updateReminder(r, (content) => reschedule(content, r, date, time, text));
+        } catch (e) {
+          console.error("[secretary] could not change a reminder", e);
+        }
+        if (!ok) {
+          new Notice(this.s.alert.failed, NOTICE_MS);
+          return false;
+        }
+        await this.tick();
+        return true;
+      },
+      start,
+    ).open();
+  }
+
   /** Checks a reminder off before its time, from the panel. */
   async completeReminder(r: Reminder): Promise<void> {
     let ok = false;
@@ -457,18 +482,32 @@ export default class Secretary extends Plugin {
     ).open();
   }
 
+  /** Changes an inbox item's text from the panel; the date and time it was added stay. */
+  editInboxItem(text: string): void {
+    const c = this.s.capture;
+    const options = { title: c.editInboxTitle, placeholder: c.placeholder, submit: c.save, value: withoutStamp(text) };
+    new LineModal(this.app, options, async (next) => {
+      if (!(await this.editInboxLine(text, (content, item) => editItem(content, item, next)))) {
+        new Notice(c.inboxChanged, NOTICE_MS);
+        return false;
+      }
+      await this.tick();
+      return true;
+    }).open();
+  }
+
   /** Checks an inbox item off from the panel, once it has been dealt with. */
   async completeInboxItem(text: string): Promise<void> {
-    if (!(await this.editInboxItem(text, checkItem))) new Notice(this.s.capture.inboxChanged, NOTICE_MS);
+    if (!(await this.editInboxLine(text, checkItem))) new Notice(this.s.capture.inboxChanged, NOTICE_MS);
     await this.tick();
   }
 
   /** Removes the first unchecked inbox line with this text; false if it is no longer there as read. */
   private removeInboxItem(text: string): Promise<boolean> {
-    return this.editInboxItem(text, removeItem);
+    return this.editInboxLine(text, removeItem);
   }
 
-  private async editInboxItem(text: string, edit: (content: string, item: InboxItem) => string | null): Promise<boolean> {
+  private async editInboxLine(text: string, edit: (content: string, item: InboxItem) => string | null): Promise<boolean> {
     const file = this.app.vault.getAbstractFileByPath(this.inboxPath());
     if (!(file instanceof TFile)) return false;
     let removed = false;
@@ -525,7 +564,7 @@ export default class Secretary extends Plugin {
         // The reminder modal opens over the alert, filled with the reminder and an hour from now.
         pick: (r) =>
           new Promise<boolean | null>((resolve) => {
-            const start = { title: this.s.alert.pickTitle, text: r.text, ...later(new Date(), 60) };
+            const start = { title: this.s.alert.pickTitle, submit: this.s.capture.save, text: r.text, ...later(new Date(), 60) };
             new ReminderModal(
               this.app,
               this.s.capture,

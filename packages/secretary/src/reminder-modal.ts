@@ -10,6 +10,8 @@ import { ymd } from "./time.ts";
  */
 export interface ReminderModalStart {
   title: string;
+  /** The button's label: "Save" when an existing reminder is changed. Defaults to "Add". */
+  submit?: string;
   text: string;
   date: string;
   time: string;
@@ -49,7 +51,7 @@ export class ReminderModal extends Modal {
       timeEl = row.controlEl.createEl("input", { type: "time", value: this.start?.time ?? "" });
     });
     const preview = this.contentEl.createDiv({ cls: "secretary-line-preview" });
-    const button = this.contentEl.createDiv({ cls: "modal-button-container" }).createEl("button", { cls: "mod-cta", text: c.submit });
+    const button = this.contentEl.createDiv({ cls: "modal-button-container" }).createEl("button", { cls: "mod-cta", text: this.start?.submit ?? c.submit });
 
     const check = () => checkReminder(textEl.value, dateEl.value, timeEl.value, new Date());
     const update = () => {

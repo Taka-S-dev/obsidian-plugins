@@ -7,6 +7,8 @@ export interface LineModalOptions {
   hint?: string;
   /** The button's label. */
   submit: string;
+  /** Text the field starts with, to change an existing line. */
+  value?: string;
 }
 
 /**
@@ -30,6 +32,7 @@ export class LineModal extends Modal {
       type: "text",
       cls: "secretary-line-input",
       attr: { placeholder: o.placeholder },
+      value: o.value ?? "",
     });
     const buttons = this.contentEl.createDiv({ cls: "modal-button-container" });
     const button = buttons.createEl("button", { cls: "mod-cta", text: o.submit });

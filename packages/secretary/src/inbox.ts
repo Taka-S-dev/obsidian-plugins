@@ -51,6 +51,18 @@ export function checkItem(content: string, item: InboxItem): string | null {
   return lines.join("\n");
 }
 
+/** Replaces the item's text, keeping its checkbox and the date and time it was added. Null when its line changed. */
+export function editItem(content: string, item: InboxItem, text: string): string | null {
+  const lines = content.split("\n");
+  const current = lines[item.line];
+  if (current === undefined || current.replace(/\r$/, "") !== item.raw) return null;
+  const head = item.raw.match(/^\s*[-*+]\s+\[ \]\s*(?:\d{4}-\d{2}-\d{2}\s+\d{1,2}:\d{2}\s+)?/);
+  if (!head) return null;
+  const cr = current.endsWith("\r") ? "\r" : "";
+  lines[item.line] = `${head[0]}${text.replace(/\s*[\r\n]+\s*/g, " ").trim()}${cr}`;
+  return lines.join("\n");
+}
+
 /** An item's text without the date and time it was added ("2026-11-19 10:32 text" -> "text"). */
 export function withoutStamp(text: string): string {
   return text.replace(/^\d{4}-\d{2}-\d{2}\s+\d{1,2}:\d{2}\s+/, "");

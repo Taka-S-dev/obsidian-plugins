@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { appendEntry, checkItem, folderOf, formatEntry, inboxItems, openItems, removeItem, withoutStamp } from "../src/inbox.ts";
+import { appendEntry, checkItem, editItem, folderOf, formatEntry, inboxItems, openItems, removeItem, withoutStamp } from "../src/inbox.ts";
 
 test("only unchecked items count", () => {
   const note = ["# 受信箱", "", "- [ ] 2026-11-19 10:32 図書館の本", "- [x] done", "* [ ] star bullet", "  - [ ] indented", "- [-] cancelled", "- plain"].join("\r\n");
@@ -45,4 +45,12 @@ test("an item dealt with is checked off and stays as a record", () => {
   assert.equal(next, ["# 受信箱", "- [ ] a", "- [x] b"].join("\r\n"));
   assert.deepEqual(openItems(next ?? ""), ["a"]);
   assert.equal(checkItem(note.replace("- [ ] b", "- [ ] b!"), b), null);
+});
+
+test("editing an item changes its text and keeps when it was added", () => {
+  const note = ["# 受信箱", "- [ ] 2026-11-19 10:32 図書館の本", "  * [ ] 歯医者"].join("\r\n");
+  const [first, second] = inboxItems(note);
+  assert.equal(editItem(note, first, "図書館の本を\n返す"), ["# 受信箱", "- [ ] 2026-11-19 10:32 図書館の本を 返す", "  * [ ] 歯医者"].join("\r\n"));
+  assert.equal(editItem(note, second, "歯医者に電話"), ["# 受信箱", "- [ ] 2026-11-19 10:32 図書館の本", "  * [ ] 歯医者に電話"].join("\r\n"));
+  assert.equal(editItem(note.replace("図書館の本", "x"), first, "y"), null);
 });
