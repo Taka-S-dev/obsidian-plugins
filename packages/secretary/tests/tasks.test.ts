@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { evaluate } from "../src/checks.ts";
 import { STRINGS } from "../src/i18n.ts";
-import { classifyDue, parseDueTasks } from "../src/tasks.ts";
+import { classifyDue, parseDueTasks, plainLinks } from "../src/tasks.ts";
 
 const note = [
   "# ToDo",
@@ -85,4 +85,33 @@ test("before the first summary time and with the check off, nothing is announced
   const off = evaluate(snap(null), "09:00", s);
   assert.equal(off.status, s.status.clear);
   assert.deepEqual(off.alerts, []);
+});
+
+test("links in a task are listed as the words Obsidian shows", () => {
+  const lines = [
+    "- [ ] [Call the bank](https://example.com/a_(b)) 📅 2026-11-19",
+    "- [/] [Fix \\[draft\\] title](app://open?id=1a2b-3c) 📅 2026-11-19",
+    "- [ ] [Fix [draft] title](https://example.com) 📅 2026-11-19",
+    "- [ ] Read [[Meeting notes]] and [[Plan#Budget|the budget]] 📅 2026-11-19",
+    "- [ ] Check [[Plan#Risks]] ![[chart.png]] 📅 2026-11-19",
+    "- [ ] [](https://example.com) 📅 2026-11-19",
+  ].join("\n");
+  assert.deepEqual(
+    parseDueTasks(lines, "a.md").map((t) => t.text),
+    [
+      "Call the bank",
+      "Fix [draft] title",
+      "Fix [draft] title",
+      "Read Meeting notes and the budget",
+      "Check Plan > Risks chart.png",
+      // nothing would be left, so the line stays as written
+      "[](https://example.com)",
+    ],
+  );
+});
+
+test("text without links, and brackets that are not links, are left alone", () => {
+  assert.equal(plainLinks("Buy milk [urgent] (today)"), "Buy milk [urgent] (today)");
+  assert.equal(plainLinks("See [[#Heading]]"), "See Heading");
+  assert.equal(plainLinks('[Spec](<C:/My Docs/spec.md> "title")'), "Spec");
 });

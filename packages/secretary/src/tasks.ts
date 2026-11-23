@@ -4,6 +4,8 @@
 //   - [/] Review the contract ⏫ 📅 2026-11-21     <- in progress still counts
 //   - [x] Book the room 📅 2026-11-20 ✅ 2026-11-19 <- done, ignored
 //
+//   - [ ] [Call the bank](https://example.com) 📅 2026-11-22  <- listed as "Call the bank"
+//
 // Only the due date (📅) is read. Recurrence, priorities and other fields are left to the Tasks plugin.
 
 import { ymd } from "./time.ts";
@@ -12,7 +14,7 @@ export interface DueTask {
   path: string;
   /** Index of the line in the note (lines split on "\n"). */
   line: number;
-  /** The task text without the Tasks fields. */
+  /** The task text without the Tasks fields, with links shown as their words. */
   text: string;
   /** YYYY-MM-DD */
   due: string;
@@ -42,10 +44,30 @@ export function parseDueTasks(content: string, path: string): DueTask[] {
     const [, y, mo, d] = due;
     if (!validDate(+y, +mo, +d)) return;
     const cut = m[2].search(FIELDS);
-    const text = (cut < 0 ? m[2] : m[2].slice(0, cut)).trim() || m[2].trim();
-    out.push({ path, line, text, due: `${y}-${mo}-${d}` });
+    const raw = (cut < 0 ? m[2] : m[2].slice(0, cut)).trim() || m[2].trim();
+    out.push({ path, line, text: plainLinks(raw) || raw, due: `${y}-${mo}-${d}` });
   });
   return out;
+}
+
+/**
+ * `[text](url)` and `![alt](url)`. The text may hold escaped brackets or one level of balanced
+ * ones, as CommonMark allows; the url may be in <...>.
+ */
+const MD_LINK = /!?\[((?:\\.|[^\\[\]]|\[(?:\\.|[^\\[\]])*\])*)\]\((?:<[^>]*>|[^()\s]*(?:\([^()\s]*\)[^()\s]*)*)(?:\s+"[^"]*")?\)/g;
+/** `[[note]]`, `[[note|alias]]`, `[[note#heading]]`, and embeds `![[...]]`. */
+const WIKI_LINK = /!?\[\[([^\]|]*)(?:\|([^\]]*))?\]\]/g;
+
+/**
+ * Links turned into the words Obsidian shows for them, so a summary or a notification reads
+ * "Renew the passport" instead of the link markup and its address.
+ */
+export function plainLinks(text: string): string {
+  return text
+    .replace(MD_LINK, (_, label: string) => label.replace(/\\(.)/g, "$1"))
+    .replace(WIKI_LINK, (_, target: string, alias?: string) => (alias ?? target.replace(/^#\^?/, "").replace(/#\^?/, " > ")).trim())
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 export interface DueSummary {
