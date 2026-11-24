@@ -126,6 +126,9 @@ const en = {
     doneToday: (n: number) => `Done today (${n})`,
     doneNotice: (text: string) => `Done: ${text}`,
     undo: "Undo",
+    delete: "Delete",
+    deletedNotice: (text: string) => `Deleted: ${text}`,
+    restoreFailed: "The note could not be found, so the line could not be put back.",
     undoFailed: "The line changed in the note, so it could not be undone. Edit the note.",
   },
   commands: {
@@ -288,6 +291,9 @@ const ja: Strings = {
     doneToday: (n) => `今日完了 ${n} 件`,
     doneNotice: (text) => `完了: ${text}`,
     undo: "元に戻す",
+    delete: "削除",
+    deletedNotice: (text) => `削除: ${text}`,
+    restoreFailed: "ノートが見つからず、行を元に戻せませんでした。",
     undoFailed: "ノートの行が変わっていたため、元に戻せませんでした。ノートを直してください。",
   },
   commands: {

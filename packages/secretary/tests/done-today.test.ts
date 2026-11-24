@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { checkedLine, doneLabel, loadDone, stillChecked, uncheck } from "../src/done-today.ts";
-import { markDone, parseReminders } from "../src/reminders.ts";
+import { checkedLine, insertLine, lineLabel, loadDone, stillChecked, uncheck } from "../src/done-today.ts";
+import { markDone, parseReminders, removeReminder } from "../src/reminders.ts";
 
 const today = "2026-11-24";
 
@@ -46,6 +46,20 @@ test("entries whose line was unchecked or deleted by hand are dropped", () => {
 });
 
 test("the panel shows an entry without its checkbox, and without the date when it is today", () => {
-  assert.equal(doneLabel({ kind: "reminder", line: "- [x] 2026-11-24 09:00 Call the dentist", date: today }, today), "09:00 Call the dentist");
-  assert.equal(doneLabel({ kind: "inbox", line: "- [x] 2026-11-20 08:00 Buy rice", date: today }, today), "2026-11-20 08:00 Buy rice");
+  assert.equal(lineLabel("- [x] 2026-11-24 09:00 Call the dentist", today), "09:00 Call the dentist");
+  assert.equal(lineLabel("- [x] 2026-11-20 08:00 Buy rice", today), "2026-11-20 08:00 Buy rice");
+});
+
+test("a deleted line goes back where it was, with the note's line ending", () => {
+  const note = ["# Reminders", "- [ ] 2026-11-24 09:00 Call the dentist", "- [ ] 2026-11-24 12:00 Lunch", ""].join("\r\n");
+  const [first] = parseReminders(note);
+  const after = removeReminder(note, first)!;
+  assert.equal(after, ["# Reminders", "- [ ] 2026-11-24 12:00 Lunch", ""].join("\r\n"));
+  assert.equal(insertLine(after, first.line, first.raw), note);
+  // The note changed meanwhile: the line still goes back, at the end at the latest.
+  assert.equal(insertLine("# Reminders\r\n", 5, first.raw), "# Reminders\r\n- [ ] 2026-11-24 09:00 Call the dentist\r\n");
+  assert.equal(insertLine("# Inbox\n- [ ] a", 9, "- [ ] b"), "# Inbox\n- [ ] a\n- [ ] b");
+  assert.equal(insertLine("", 0, "- [ ] b"), "- [ ] b\n");
+  // A line that changed is not deleted.
+  assert.equal(removeReminder(note.replace("dentist", "doctor"), first), null);
 });

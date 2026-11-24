@@ -1,6 +1,6 @@
 import { ItemView, Menu, setIcon, setTooltip, WorkspaceLeaf } from "obsidian";
 import { unread } from "./bulletins.ts";
-import { doneLabel, type DoneKind } from "./done-today.ts";
+import { lineLabel, type DoneKind } from "./done-today.ts";
 import { tabHeaderEl } from "./obsidian-internals.ts";
 import { dueReminders, laterDays, upcomingToday } from "./reminders.ts";
 import { classifyDue, type DueTask } from "./tasks.ts";
@@ -141,6 +141,8 @@ export class SecretaryPanel extends ItemView {
         menu.addItem((i) => i.setTitle(t.edit).setIcon("pencil").onClick(() => this.plugin.editReminder(r)));
         menu.addItem((i) => i.setTitle(t.openLine).setIcon("file-text").onClick(() => void this.plugin.openReminder(r)));
         menu.addItem((i) => i.setTitle(t.done).setIcon("check").onClick(() => void this.plugin.completeReminder(r)));
+        menu.addSeparator();
+        menu.addItem((i) => i.setTitle(t.delete).setIcon("trash-2").setWarning(true).onClick(() => void this.plugin.deleteReminder(r)));
         menu.showAtMouseEvent(event);
       });
       row.createEl("button", { text: t.done }).addEventListener("click", (event) => {
@@ -179,6 +181,8 @@ export class SecretaryPanel extends ItemView {
         menu.addItem((i) => i.setTitle(t.openLine).setIcon("file-text").onClick(() => void this.plugin.openInboxItem(item)));
         menu.addItem((i) => i.setTitle(t.toReminder).setIcon("alarm-clock").onClick(() => this.plugin.remindFromInbox(item)));
         menu.addItem((i) => i.setTitle(t.done).setIcon("check").onClick(() => void this.plugin.completeInboxItem(item)));
+        menu.addSeparator();
+        menu.addItem((i) => i.setTitle(t.delete).setIcon("trash-2").setWarning(true).onClick(() => void this.plugin.deleteInboxItem(item)));
         menu.showAtMouseEvent(event);
       });
       const button = (text: string, run: () => void) =>
@@ -215,7 +219,7 @@ export class SecretaryPanel extends ItemView {
     // The latest first.
     for (const entry of [...entries].reverse()) {
       const row = body.createDiv({ cls: "secretary-row secretary-reminder secretary-done" });
-      row.createDiv({ cls: "secretary-reminder-text", text: doneLabel(entry, today) });
+      row.createDiv({ cls: "secretary-reminder-text", text: lineLabel(entry.line, today) });
       row.createEl("button", { text: t.undo }).addEventListener("click", () => void this.plugin.undoDone(entry));
     }
   }

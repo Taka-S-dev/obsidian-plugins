@@ -14,7 +14,7 @@ import {
   type Rejected,
 } from "./bulletins.ts";
 import { currentSlot, evaluate, loadAnnounced, pickNew, type Announced, type Report, type Snapshot } from "./checks.ts";
-import { checkedLine, DONE_LIMIT, doneLabel, loadDone, stillChecked, uncheck, type DoneEntry, type DoneKind } from "./done-today.ts";
+import { checkedLine, DONE_LIMIT, insertLine, lineLabel, loadDone, stillChecked, uncheck, type DoneEntry, type DoneKind } from "./done-today.ts";
 import { stringsFor, type Strings } from "./i18n.ts";
 import { appendEntry, checkItem, editItem, folderOf, formatEntry, inboxItems, openItems, removeItem, withoutStamp, type InboxItem } from "./inbox.ts";
 import { LineModal } from "./line-modal.ts";
@@ -23,7 +23,7 @@ import { ReminderAlert } from "./reminder-alert.ts";
 import { beep, bringToFront } from "./attention.ts";
 import { PANEL_VIEW, SecretaryPanel } from "./panel.ts";
 import type { QueueMessage } from "./queue.ts";
-import { dueReminders, formatReminder, later, markDone, parseReminders, reschedule, tomorrowAt, type Reminder } from "./reminders.ts";
+import { dueReminders, formatReminder, later, markDone, parseReminders, removeReminder, reschedule, tomorrowAt, type Reminder } from "./reminders.ts";
 import { DEFAULT_SETTINGS, mergeSettings, SecretarySettingTab, type SecretarySettings } from "./settings.ts";
 import { defaultQueueDir, ensureQueueDir, listMessages, messageKey, readMessage, rejectMessage, removeMessage } from "./spool.ts";
 import { parseDueTasks, type DueTask } from "./tasks.ts";
@@ -483,12 +483,59 @@ export default class Secretary extends Plugin {
     const entry: DoneEntry = { kind, line: checkedLine(raw), date: ymd(new Date()) };
     this.doneToday = [...this.doneToday, entry].slice(-DONE_LIMIT);
     await this.persist();
-    const t = this.s.panel;
+    this.offerUndo(this.s.panel.doneNotice(lineLabel(entry.line, entry.date)), () => this.undoDone(entry));
+  }
+
+  /** A notice saying what was just done, with Undo, for a few seconds. */
+  private offerUndo(text: string, undo: () => Promise<void>): void {
     const body = createFragment((f) => {
-      f.createDiv({ text: t.doneNotice(doneLabel(entry, entry.date)) });
-      f.createEl("button", { text: t.undo, cls: "secretary-undo" }).addEventListener("click", () => void this.undoDone(entry));
+      f.createDiv({ text });
+      f.createEl("button", { text: this.s.panel.undo, cls: "secretary-undo" }).addEventListener("click", () => void undo());
     });
     new Notice(body, UNDO_MS);
+  }
+
+  /** Deletes a reminder's line from the note, from the panel's menu; Undo in the notice puts it back. */
+  async deleteReminder(r: Reminder): Promise<void> {
+    let ok = false;
+    try {
+      ok = await this.updateReminder(r, (content) => removeReminder(content, r));
+    } catch (e) {
+      console.error("[secretary] could not delete a reminder", e);
+    }
+    if (ok) this.offerRestore(this.remindersPath(), r.line, r.raw);
+    else new Notice(this.s.alert.failed, NOTICE_MS);
+    await this.tick();
+  }
+
+  /** Deletes an inbox item's line from the note, from the panel's menu; Undo in the notice puts it back. */
+  async deleteInboxItem(text: string): Promise<void> {
+    let removed: InboxItem | null = null;
+    const ok = await this.editInboxLine(text, (content, item) => {
+      removed = item;
+      return removeItem(content, item);
+    });
+    const item = removed as InboxItem | null;
+    if (ok && item) this.offerRestore(this.inboxPath(), item.line, item.raw);
+    else new Notice(this.s.capture.inboxChanged, NOTICE_MS);
+    await this.tick();
+  }
+
+  private offerRestore(path: string, line: number, raw: string): void {
+    this.offerUndo(this.s.panel.deletedNotice(lineLabel(raw, ymd(new Date()))), async () => {
+      const file = this.app.vault.getAbstractFileByPath(path);
+      let ok = false;
+      if (file instanceof TFile) {
+        try {
+          await this.app.vault.process(file, (content) => insertLine(content, line, raw));
+          ok = true;
+        } catch (e) {
+          console.error("[secretary] could not put a deleted line back", e);
+        }
+      }
+      if (!ok) new Notice(this.s.panel.restoreFailed, NOTICE_MS);
+      await this.tick();
+    });
   }
 
   /** Unchecks a reminder or inbox item checked off today, from the notice or the panel. */

@@ -72,6 +72,15 @@ export function markDone(content: string, r: Reminder): string | null {
   return lines.join("\n");
 }
 
+/** Deletes the reminder's line. Null, leaving the note alone, when that line changed meanwhile. */
+export function removeReminder(content: string, r: Reminder): string | null {
+  const lines = content.split("\n");
+  const current = lines[r.line];
+  if (current === undefined || current.replace(/\r$/, "") !== r.raw) return null;
+  lines.splice(r.line, 1);
+  return lines.join("\n");
+}
+
 export type ReminderCheck =
   | { ok: true; date: string; time: string; text: string }
   | { ok: false; reason: "text" | "date" | "time" | "past" };

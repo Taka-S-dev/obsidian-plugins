@@ -1,5 +1,6 @@
-// What was checked off today from the panel or the reminder alert, so a Done pressed by mistake can
-// be undone until the day is over. Only the checked line is kept; the note stays the record.
+// Undoing Done and Delete. What was checked off today from the panel or the reminder alert is kept,
+// so a Done pressed by mistake can be undone until the day is over; only the checked line is kept,
+// and the note stays the record. A deleted line can be put back where it was.
 // Pure module (no Obsidian imports).
 
 export type DoneKind = "reminder" | "inbox";
@@ -57,8 +58,28 @@ export function stillChecked(entries: DoneEntry[], kind: DoneKind, content: stri
   return entries.filter((e) => e.kind !== kind || lines.has(e.line));
 }
 
-/** The entry as the panel shows it: no checkbox, and no date when it is today's. */
-export function doneLabel(e: DoneEntry, today: string): string {
-  const text = e.line.replace(CHECKED, "");
+/** A task line as the panel and its notices show it: no checkbox, and no date when it is today's. */
+export function lineLabel(line: string, today: string): string {
+  const text = line.replace(/^\s*[-*+]\s+\[[ xX]\]\s*/, "");
   return text.startsWith(`${today} `) ? text.slice(today.length + 1) : text;
+}
+
+/**
+ * Puts a deleted line back where it was: before the line now at that index, or at the end. The
+ * note's line ending is kept.
+ */
+export function insertLine(content: string, index: number, line: string): string {
+  const lines = content.split("\n");
+  const cr = lines[0].endsWith("\r") ? "\r" : "";
+  // A note ending in a line break splits into a last empty piece; the line goes before it.
+  const end = lines[lines.length - 1] === "" ? lines.length - 1 : lines.length;
+  const at = Math.max(0, Math.min(index, end));
+  if (at === lines.length) {
+    // After a last line that has no line break: that line gets one, the restored line none.
+    if (at > 0) lines[at - 1] += cr;
+    lines.push(line);
+  } else {
+    lines.splice(at, 0, `${line}${cr}`);
+  }
+  return lines.join("\n");
 }
