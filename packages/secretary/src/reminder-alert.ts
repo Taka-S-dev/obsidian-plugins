@@ -4,6 +4,12 @@ import type { Reminder } from "./reminders.ts";
 
 export const SNOOZE_MINUTES = [10, 60] as const;
 
+/**
+ * The alert comes up over whatever was being clicked or typed. Its buttons wait this long after a
+ * reminder appears, so a click or key meant for something else does not mark it done.
+ */
+export const ARM_MS = 1_000;
+
 export interface ReminderAlertActions {
   /** Checks the reminder off. Resolves to false when its line could not be updated. */
   done(r: Reminder): Promise<boolean>;
@@ -49,6 +55,10 @@ export class ReminderAlert extends Modal {
     this.pending = [];
     const footer = contentEl.createDiv({ cls: "modal-button-container" });
     new ButtonComponent(footer).setButtonText(this.s.alert.ok).setCta().onClick(() => this.close());
+    // Keys being typed when the alert comes up go to the alert itself, not to a button: Enter or
+    // Space would otherwise press it. Esc still closes the alert.
+    this.modalEl.tabIndex = -1;
+    window.setTimeout(() => this.modalEl.focus(), 0);
   }
 
   /** Adds reminders that came due while the alert is open. */
@@ -73,7 +83,13 @@ export class ReminderAlert extends Modal {
     const buttons = row.createDiv({ cls: "secretary-alert-buttons" });
     const error = row.createDiv({ cls: "secretary-alert-error" });
     const all: ButtonComponent[] = [];
-    const act = async (run: () => Promise<boolean | null>) => {
+    // A press that began before the buttons were ready does not count when it is released after.
+    const readyAt = Date.now() + ARM_MS;
+    let pressedAt = 0;
+    buttons.addEventListener("pointerdown", () => (pressedAt = Date.now()), true);
+    const ready = (event: MouseEvent) => Date.now() >= readyAt && (event.detail === 0 || pressedAt >= readyAt);
+    const act = async (event: MouseEvent, run: () => Promise<boolean | null>) => {
+      if (!ready(event)) return;
       all.forEach((b) => b.setDisabled(true));
       error.setText("");
       let ok: boolean | null = false;
@@ -96,12 +112,17 @@ export class ReminderAlert extends Modal {
       this.left.delete(r);
       if (this.left.size === 0) this.close();
     };
-    all.push(new ButtonComponent(buttons).setButtonText(a.done).setCta().onClick(() => void act(() => this.actions.done(r))));
+    all.push(new ButtonComponent(buttons).setButtonText(a.done).setCta().onClick((e) => void act(e, () => this.actions.done(r))));
     for (const minutes of SNOOZE_MINUTES) {
-      all.push(new ButtonComponent(buttons).setButtonText(a.snooze(minutes)).onClick(() => void act(() => this.actions.snooze(r, minutes))));
+      all.push(new ButtonComponent(buttons).setButtonText(a.snooze(minutes)).onClick((e) => void act(e, () => this.actions.snooze(r, minutes))));
     }
-    all.push(new ButtonComponent(buttons).setButtonText(a.tomorrow).setTooltip(a.tomorrowTooltip(r.time)).onClick(() => void act(() => this.actions.tomorrow(r))));
-    all.push(new ButtonComponent(buttons).setButtonText(a.pick).onClick(() => void act(() => this.actions.pick(r))));
+    all.push(new ButtonComponent(buttons).setButtonText(a.tomorrow).setTooltip(a.tomorrowTooltip(r.time)).onClick((e) => void act(e, () => this.actions.tomorrow(r))));
+    all.push(new ButtonComponent(buttons).setButtonText(a.pick).onClick((e) => void act(e, () => this.actions.pick(r))));
+    // Greyed out until ready, so the wait is visible rather than a click that does nothing.
+    all.forEach((b) => b.setDisabled(true));
+    window.setTimeout(() => {
+      if (row.isConnected) all.forEach((b) => b.setDisabled(false));
+    }, ARM_MS);
     this.left.set(r, row);
   }
 
