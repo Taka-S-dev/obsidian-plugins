@@ -129,7 +129,7 @@ Inbox announcements happen once per reminder time per day. If Obsidian is opened
 |---|---|
 | Add to inbox | Opens the input. Enter adds the line (Enter while composing with an IME confirms the IME instead). |
 | Add a reminder | Opens the input. Until the text, date and time can be used (a time already passed cannot), the button is off and the line under the fields says what is missing. |
-| Open the secretary panel | Opens the panel in the right sidebar. |
+| Open panel | Opens the panel in the right sidebar. |
 | Mark all notices as read | Marks every unread notice as read. |
 | Open inbox / Open reminders | Opens the note. |
 | Check now | Reads the queue and both notes again and shows the list. |

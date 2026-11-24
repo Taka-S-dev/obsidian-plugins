@@ -96,7 +96,7 @@ export default class Secretary extends Plugin {
     this.statusEl.addClass("mod-clickable");
     this.statusEl.setAttr("aria-label", this.s.status.tooltip);
     this.registerDomEvent(this.statusEl, "click", () => void this.openPanel());
-    this.addRibbonIcon("bell", this.s.commands.openPanel, () => void this.openPanel());
+    this.addRibbonIcon("bell", this.s.commands.ribbon, () => void this.openPanel());
 
     const c = this.s.commands;
     this.addCommand({ id: "capture", name: c.capture, callback: () => this.openCaptureModal() });

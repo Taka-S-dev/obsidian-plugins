@@ -137,7 +137,9 @@ const en = {
     checkNow: "Check now",
     openInbox: "Open inbox",
     openReminders: "Open reminders",
-    openPanel: "Open the secretary panel",
+    // The command palette puts "Secretary:" in front; the ribbon icon's tooltip stands alone.
+    openPanel: "Open panel",
+    ribbon: "Open Secretary",
     markAllRead: "Mark all notices as read",
   },
   settings: {
@@ -170,7 +172,7 @@ export type Strings = typeof en;
 
 const ja: Strings = {
   status: {
-    clear: "秘書: 特になし",
+    clear: "Secretary: 特になし",
     inbox: (n) => `受信箱 ${n}`,
     next: (time, text) => `次 ${time} ${text}`,
     bulletins: (n) => `お知らせ ${n}`,
@@ -250,7 +252,7 @@ const ja: Strings = {
     title: (source) => (source ? `${source} からのお知らせ` : "お知らせ"),
   },
   queue: {
-    rejectedNotice: (name, reason) => `秘書: ${name} を受け取れませんでした（${reason}）`,
+    rejectedNotice: (name, reason) => `Secretary: ${name} を受け取れませんでした（${reason}）`,
     reasons: {
       json: "JSON のオブジェクトではない",
       version: "「v」が対応していない版（1 のみ）",
@@ -262,7 +264,7 @@ const ja: Strings = {
     },
   },
   panel: {
-    title: "秘書",
+    title: "Secretary",
     bulletins: "お知らせ",
     noBulletins: "お知らせはありません。",
     markRead: "既読",
@@ -302,7 +304,8 @@ const ja: Strings = {
     checkNow: "今すぐチェックする",
     openInbox: "受信箱を開く",
     openReminders: "リマインダーを開く",
-    openPanel: "秘書のパネルを開く",
+    openPanel: "パネルを開く",
+    ribbon: "Secretary を開く",
     markAllRead: "お知らせをすべて既読にする",
   },
   settings: {
