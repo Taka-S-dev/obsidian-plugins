@@ -1,5 +1,6 @@
 import { ItemView, Menu, setIcon, setTooltip, WorkspaceLeaf } from "obsidian";
 import { unread } from "./bulletins.ts";
+import { doneLabel, type DoneKind } from "./done-today.ts";
 import { tabHeaderEl } from "./obsidian-internals.ts";
 import { dueReminders, laterDays, upcomingToday } from "./reminders.ts";
 import { classifyDue, type DueTask } from "./tasks.ts";
@@ -19,6 +20,9 @@ interface SectionOptions {
 
 /** The side panel: notices, what is left today, and what waits in the inbox. Redrawn after every check. */
 export class SecretaryPanel extends ItemView {
+  /** Sections whose "done today" list is open; closed again when the panel is reopened. */
+  private openDone = new Set<DoneKind>();
+
   constructor(leaf: WorkspaceLeaf, private plugin: Secretary) {
     super(leaf);
   }
@@ -146,6 +150,7 @@ export class SecretaryPanel extends ItemView {
     }
     const later = laterDays(reminders, now).length;
     if (later > 0) rBody.createDiv({ cls: "secretary-note", text: t.later(later) });
+    this.doneList(rBody, "reminder", ymd(now));
 
     const inbox = snap?.inbox ?? [];
     const iBody = this.section(root, {
@@ -184,8 +189,35 @@ export class SecretaryPanel extends ItemView {
       button(t.toReminder, () => this.plugin.remindFromInbox(item));
       button(t.done, () => void this.plugin.completeInboxItem(item));
     }
+    this.doneList(iBody, "inbox", ymd(now));
 
     if (snap) root.createDiv({ cls: "secretary-note secretary-footer", text: t.checkedAt(hm(snap.now)) });
+  }
+
+  /**
+   * One line under the section, "Done today (2)", that opens the ones checked off today, struck
+   * through, each with Undo: a Done pressed by mistake can be found again until the day is over.
+   */
+  private doneList(body: HTMLElement, kind: DoneKind, today: string): void {
+    const t = this.plugin.s.panel;
+    const entries = this.plugin.doneToday.filter((e) => e.kind === kind);
+    if (entries.length === 0) return;
+    const open = this.openDone.has(kind);
+    const toggle = body.createDiv({ cls: "secretary-note secretary-clickable secretary-done-toggle" });
+    setIcon(toggle.createSpan({ cls: "secretary-done-icon" }), open ? "chevron-down" : "chevron-right");
+    toggle.createSpan({ text: t.doneToday(entries.length) });
+    toggle.addEventListener("click", () => {
+      if (open) this.openDone.delete(kind);
+      else this.openDone.add(kind);
+      this.render();
+    });
+    if (!open) return;
+    // The latest first.
+    for (const entry of [...entries].reverse()) {
+      const row = body.createDiv({ cls: "secretary-row secretary-reminder secretary-done" });
+      row.createDiv({ cls: "secretary-reminder-text", text: doneLabel(entry, today) });
+      row.createEl("button", { text: t.undo }).addEventListener("click", () => void this.plugin.undoDone(entry));
+    }
   }
 
   private section(root: HTMLElement, o: SectionOptions): HTMLElement {

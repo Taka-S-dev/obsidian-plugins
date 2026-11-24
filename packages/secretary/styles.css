@@ -228,3 +228,28 @@
   /* A ring in the tab's color keeps the dot apart from the icon under it. */
   box-shadow: 0 0 0 2px var(--tab-background-active, var(--background-primary));
 }
+
+/* "Done today": one muted line that opens what was checked off today, struck through, with Undo. */
+.secretary-done-toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--size-2-1);
+}
+
+.secretary-done-icon {
+  display: flex;
+}
+
+.secretary-done-icon svg {
+  width: var(--icon-xs);
+  height: var(--icon-xs);
+}
+
+.secretary-done .secretary-reminder-text {
+  color: var(--text-muted);
+  text-decoration: line-through;
+}
+
+.notice .secretary-undo {
+  margin-top: var(--size-4-1);
+}

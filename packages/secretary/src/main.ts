@@ -14,6 +14,7 @@ import {
   type Rejected,
 } from "./bulletins.ts";
 import { currentSlot, evaluate, loadAnnounced, pickNew, type Announced, type Report, type Snapshot } from "./checks.ts";
+import { checkedLine, DONE_LIMIT, doneLabel, loadDone, stillChecked, uncheck, type DoneEntry, type DoneKind } from "./done-today.ts";
 import { stringsFor, type Strings } from "./i18n.ts";
 import { appendEntry, checkItem, editItem, folderOf, formatEntry, inboxItems, openItems, removeItem, withoutStamp, type InboxItem } from "./inbox.ts";
 import { LineModal } from "./line-modal.ts";
@@ -42,6 +43,8 @@ const WATCH_DEBOUNCE_MS = 300;
  * has been left alone this long.
  */
 const EDIT_QUIET_MS = 8_000;
+/** How long the notice with Undo stays after something is checked off. */
+const UNDO_MS = 10_000;
 
 export default class Secretary extends Plugin {
   settings: SecretarySettings = { ...DEFAULT_SETTINGS };
@@ -49,6 +52,8 @@ export default class Secretary extends Plugin {
   /** What the last check read. The panel draws from it. */
   snapshot: Snapshot | null = null;
   private announced: Announced = { date: "", keys: [] };
+  /** Reminders and inbox items checked off today from the panel or the alert, for Undo. */
+  doneToday: DoneEntry[] = [];
   private bulletins: Bulletin[] = [];
   /**
    * Queue files already handled (name, size and time), so a file that could not be deleted is not
@@ -80,6 +85,7 @@ export default class Secretary extends Plugin {
     const saved = (await this.loadData()) as Record<string, unknown> | null;
     this.settings = mergeSettings(saved);
     this.announced = loadAnnounced(saved?.announced, ymd(new Date()));
+    this.doneToday = loadDone(saved?.doneToday, ymd(new Date()));
     this.bulletins = loadBulletins(saved?.bulletins);
     this.processed = loadStrings(saved?.processed, PROCESSED_LIMIT);
     this.rejected = loadRejected(saved?.rejected);
@@ -161,6 +167,7 @@ export default class Secretary extends Plugin {
     await this.saveData({
       ...this.settings,
       announced: this.announced,
+      doneToday: this.doneToday,
       bulletins: this.bulletins,
       processed: this.processed,
       rejected: this.rejected,
@@ -352,6 +359,10 @@ export default class Secretary extends Plugin {
       dueTasks,
     };
     this.snapshot = snap;
+    // Yesterday's entries go at midnight, and ones unchecked or deleted in the note by hand at once.
+    const done = stillChecked(stillChecked(loadDone(this.doneToday, today), "inbox", inboxText), "reminder", remindersText);
+    const doneChanged = done.length !== this.doneToday.length;
+    this.doneToday = done;
     this.report = evaluate(snap, currentSlot(this.settings.summaryTimes, now), this.s);
     this.statusEl?.setText(this.report.status);
     this.renderPanels();
@@ -372,7 +383,7 @@ export default class Secretary extends Plugin {
     const { next, fresh } = pickNew(this.announced, today, this.report.alerts);
     this.announced = next;
     for (const a of fresh) this.announce(a.title, a.body);
-    if (fired || fresh.length > 0) await this.persist();
+    if (fired || fresh.length > 0 || doneChanged) await this.persist();
   }
 
   /**
@@ -452,11 +463,54 @@ export default class Secretary extends Plugin {
   async completeReminder(r: Reminder): Promise<void> {
     let ok = false;
     try {
-      ok = await this.updateReminder(r, (content) => markDone(content, r));
+      ok = await this.markReminderDone(r);
     } catch (e) {
       console.error("[secretary] could not check off a reminder", e);
     }
     if (!ok) new Notice(this.s.alert.failed, NOTICE_MS);
+    await this.tick();
+  }
+
+  /** Checks a reminder off and keeps it for Undo. */
+  private async markReminderDone(r: Reminder): Promise<boolean> {
+    const ok = await this.updateReminder(r, (content) => markDone(content, r));
+    if (ok) await this.recordDone("reminder", r.raw);
+    return ok;
+  }
+
+  /** Keeps what was just checked off for today, and offers to undo it at once. */
+  private async recordDone(kind: DoneKind, raw: string): Promise<void> {
+    const entry: DoneEntry = { kind, line: checkedLine(raw), date: ymd(new Date()) };
+    this.doneToday = [...this.doneToday, entry].slice(-DONE_LIMIT);
+    await this.persist();
+    const t = this.s.panel;
+    const body = createFragment((f) => {
+      f.createDiv({ text: t.doneNotice(doneLabel(entry, entry.date)) });
+      f.createEl("button", { text: t.undo, cls: "secretary-undo" }).addEventListener("click", () => void this.undoDone(entry));
+    });
+    new Notice(body, UNDO_MS);
+  }
+
+  /** Unchecks a reminder or inbox item checked off today, from the notice or the panel. */
+  async undoDone(entry: DoneEntry): Promise<void> {
+    const file = this.app.vault.getAbstractFileByPath(entry.kind === "reminder" ? this.remindersPath() : this.inboxPath());
+    let ok = false;
+    if (file instanceof TFile) {
+      try {
+        await this.app.vault.process(file, (content) => {
+          const next = uncheck(content, entry.line);
+          if (next === null) return content;
+          ok = true;
+          return next;
+        });
+      } catch (e) {
+        console.error("[secretary] could not undo a check", e);
+      }
+    }
+    if (!ok) new Notice(this.s.panel.undoFailed, NOTICE_MS);
+    // Undone, or its line is gone: either way there is nothing left to undo.
+    this.doneToday = this.doneToday.filter((e) => e !== entry);
+    await this.persist();
     await this.tick();
   }
 
@@ -498,7 +552,13 @@ export default class Secretary extends Plugin {
 
   /** Checks an inbox item off from the panel, once it has been dealt with. */
   async completeInboxItem(text: string): Promise<void> {
-    if (!(await this.editInboxLine(text, checkItem))) new Notice(this.s.capture.inboxChanged, NOTICE_MS);
+    let raw = "";
+    const ok = await this.editInboxLine(text, (content, item) => {
+      raw = item.raw;
+      return checkItem(content, item);
+    });
+    if (ok) await this.recordDone("inbox", raw);
+    else new Notice(this.s.capture.inboxChanged, NOTICE_MS);
     await this.tick();
   }
 
@@ -552,7 +612,7 @@ export default class Secretary extends Plugin {
       this.alert.add(pending);
     } else {
       this.alert = new ReminderAlert(this.app, this.s, today, pending, {
-        done: (r) => this.updateReminder(r, (content) => markDone(content, r)),
+        done: (r) => this.markReminderDone(r),
         snooze: (r, minutes) => {
           const at = later(new Date(), minutes);
           return this.updateReminder(r, (content) => reschedule(content, r, at.date, at.time));

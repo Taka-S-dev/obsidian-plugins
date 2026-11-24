@@ -123,6 +123,10 @@ const en = {
     reminderTip: "Click to edit, Ctrl+click to open its line",
     inboxTip: "Click to edit, Ctrl+click to open its line",
     checkedAt: (time: string) => `As of ${time}`,
+    doneToday: (n: number) => `Done today (${n})`,
+    doneNotice: (text: string) => `Done: ${text}`,
+    undo: "Undo",
+    undoFailed: "The line changed in the note, so it could not be undone. Edit the note.",
   },
   commands: {
     capture: "Add to inbox",
@@ -281,6 +285,10 @@ const ja: Strings = {
     reminderTip: "クリックで編集、Ctrl+クリックでノートのその行を開く",
     inboxTip: "クリックで編集、Ctrl+クリックでノートのその行を開く",
     checkedAt: (time) => `${time} 時点`,
+    doneToday: (n) => `今日完了 ${n} 件`,
+    doneNotice: (text) => `完了: ${text}`,
+    undo: "元に戻す",
+    undoFailed: "ノートの行が変わっていたため、元に戻せませんでした。ノートを直してください。",
   },
   commands: {
     capture: "受信箱に追加",
