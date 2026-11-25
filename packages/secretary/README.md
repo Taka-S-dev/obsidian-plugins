@@ -121,7 +121,7 @@ Both notes are read again whenever they change, so edits by hand show up right a
 
 ## Links
 
-The text of a reminder, an inbox item or a notice can hold links, written as standard Markdown. The panel and the reminder alert show them by their words and open them on click.
+The text of a reminder, an inbox item or a notice can hold links, written as standard Markdown. The panel and the reminder alert show them by their words and open them on click; only the link opens, and a click elsewhere in the row edits it as before. A link whose words are its whole path or URL (as pasted) shows only the file or folder name, or the site (`example.com/…`), so it does not fill the row; the note keeps the full address, which the tooltip and Copy still give.
 
 ```markdown
 - [ ] 2026-11-25 15:00 Send the quote [Quote](<file://server/share/sales/quote.xlsx>)

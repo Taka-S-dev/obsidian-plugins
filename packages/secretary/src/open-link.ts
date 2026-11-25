@@ -3,7 +3,7 @@ import { stat } from "node:fs/promises";
 import { win32 } from "node:path";
 import { App, ButtonComponent, Keymap, Menu, Modal, Notice, setIcon, setTooltip } from "obsidian";
 import type { Strings } from "./i18n.ts";
-import { segments, type Segment } from "./links.ts";
+import { segments, shortLabel, type Segment } from "./links.ts";
 import { opensDirectly, shareHost } from "./safety.ts";
 
 /** Servers whose share links have been allowed to open, kept with the plugin's data. */
@@ -46,7 +46,7 @@ export class LinkOpener {
         el.appendText(part.text);
         continue;
       }
-      const a = el.createEl("a", { cls: "secretary-link", text: part.text, href: "#" });
+      const a = el.createEl("a", { cls: "secretary-link", text: shortLabel(part), href: "#" });
       setTooltip(a, this.address(part));
       a.addEventListener("click", (event) => {
         event.preventDefault();

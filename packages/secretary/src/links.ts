@@ -127,6 +127,29 @@ export function filePath(href: string): string | null {
   return isWindowsPath(path) ? path : null;
 }
 
+/**
+ * What the panel shows for a link. A link whose words are its whole address (a pasted path or URL)
+ * would fill the row and leave little to click for editing it, so it shows only the file or folder
+ * name, or the site; the note keeps the full address, which the tooltip and Copy still give.
+ * Words chosen for a link are shown as they are.
+ */
+export function shortLabel(link: Exclude<Segment, { kind: "text" }>): string {
+  if (link.kind === "file" && link.text === link.path) {
+    const parts = link.path.split("\\").filter(Boolean);
+    // A drive root (C:\) or a bare server (\\server) has no shorter name.
+    return parts.length > 1 ? parts[parts.length - 1] : link.path;
+  }
+  if (link.kind === "web" && link.text === link.url && /^https?:/i.test(link.url)) {
+    try {
+      const u = new URL(link.url);
+      return u.pathname.length > 1 || u.search || u.hash ? `${u.host}/…` : u.host;
+    } catch {
+      return link.text;
+    }
+  }
+  return link.text;
+}
+
 /** The text as words only, for places that cannot hold a link: the status bar and notices. */
 export function plainText(text: string): string {
   return segments(text).map((s) => s.text).join("");

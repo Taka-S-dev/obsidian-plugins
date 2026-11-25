@@ -1,9 +1,28 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { filePath, MAX_LINKED, pastedLink, plainText, segments } from "../src/links.ts";
+import { filePath, MAX_LINKED, pastedLink, plainText, segments, shortLabel } from "../src/links.ts";
 import { isOpenableScheme, opensDirectly, shareHost } from "../src/safety.ts";
 
 const BS = "\\";
+
+test("a link whose words are its whole address shows only the name or the site", () => {
+  const label = (text: string) => {
+    const link = segments(text).find((s) => s.kind !== "text");
+    assert.ok(link && link.kind !== "text", text);
+    return shortLabel(link);
+  };
+  const doc = [BS, BS, "server", BS, "share", BS, "docs", BS, "manual.pdf"].join("");
+  assert.equal(label(pastedLink(doc)!), "manual.pdf");
+  assert.equal(label(pastedLink([BS, BS, "server", BS, "share"].join(""))!), "share");
+  assert.equal(label(pastedLink("C:" + BS + "Users" + BS + "me" + BS + "work")!), "work");
+  assert.equal(label(pastedLink("C:" + BS)!), "C:" + BS);
+  assert.equal(label("<https://example.com/a/b?c=1>"), "example.com/…");
+  assert.equal(label("see https://example.com"), "example.com");
+  // Words chosen for a link stay as they are.
+  assert.equal(label(pastedLink(doc, "the manual")!), "the manual");
+  assert.equal(label("[status](<https://example.com/status>)"), "status");
+  assert.equal(label("[mail](mailto:a@example.com)"), "mail");
+});
 
 test("text without links is one plain part", () => {
   assert.deepEqual(segments("Buy rice [soon] (today)"), [{ kind: "text", text: "Buy rice [soon] (today)" }]);
