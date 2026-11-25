@@ -129,7 +129,7 @@
 }
 
 .secretary-row {
-  padding: var(--size-2-1) 0;
+  padding: var(--size-2-3) 0;
   border-bottom: var(--border-width) solid var(--background-modifier-border);
   font-size: var(--font-ui-small);
   overflow-wrap: anywhere;
@@ -138,6 +138,14 @@
 .secretary-time {
   font-variant-numeric: tabular-nums;
   color: var(--text-accent);
+  margin-right: var(--size-4-2);
+}
+
+/* When an inbox item was added: a label beside the text, not part of it. */
+.secretary-stamp {
+  font-variant-numeric: tabular-nums;
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
   margin-right: var(--size-4-2);
 }
 
@@ -234,6 +242,18 @@
   display: flex;
   align-items: center;
   gap: var(--size-2-1);
+  padding: var(--size-2-2) 0;
+  color: var(--text-muted);
+}
+
+.secretary-fold:hover {
+  color: var(--text-normal);
+}
+
+.secretary-fold-body {
+  margin-left: var(--size-4-2);
+  padding-left: var(--size-4-2);
+  border-left: var(--border-width) solid var(--background-modifier-border-hover);
 }
 
 .secretary-fold-icon {

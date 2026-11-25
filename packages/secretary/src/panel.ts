@@ -1,6 +1,7 @@
 import { ItemView, Menu, setIcon, setTooltip, WorkspaceLeaf } from "obsidian";
 import { unread } from "./bulletins.ts";
 import { lineLabel, type DoneKind } from "./done-today.ts";
+import { shortDate, splitStamp } from "./inbox.ts";
 import { tabHeaderEl } from "./obsidian-internals.ts";
 import { dueReminders, laterDays, upcomingToday, type Reminder } from "./reminders.ts";
 import { classifyDue, type DueTask } from "./tasks.ts";
@@ -106,7 +107,7 @@ export class SecretaryPanel extends ItemView {
       // Later due dates are counted on one line, as later reminders are, and listed when it is opened.
       if (due.later.length > 0) {
         this.fold(dBody, "due-later", t.laterDue(due.later.length), (body) => {
-          for (const task of due.later) this.dueRow(body, task, task.due, false);
+          for (const task of due.later) this.dueRow(body, task, shortDate(task.due, ymd(now)), false);
         });
       }
     }
@@ -153,7 +154,11 @@ export class SecretaryPanel extends ItemView {
     // Each can also become a reminder (it then leaves the inbox) or be checked off as dealt with.
     for (const item of inbox) {
       const row = iBody.createDiv({ cls: "secretary-row secretary-clickable secretary-reminder" });
-      this.plugin.links.render(row.createDiv({ cls: "secretary-reminder-text" }), item);
+      // When it was added is a muted, short label, so the text has the row.
+      const text = row.createDiv({ cls: "secretary-reminder-text" });
+      const parts = splitStamp(item, ymd(now));
+      if (parts) text.createSpan({ cls: "secretary-stamp", text: parts.stamp });
+      this.plugin.links.render(text.createSpan(), parts?.text ?? item);
       row.addEventListener("click", (event) => {
         if (event.ctrlKey || event.metaKey) void this.plugin.openInboxItem(item);
         else this.plugin.editInboxItem(item);
@@ -215,7 +220,8 @@ export class SecretaryPanel extends ItemView {
       else this.openFolds.add(key);
       this.render();
     });
-    if (open) fill(body);
+    // Indented under a guide line, so what belongs to the fold reads apart from the rows around it.
+    if (open) fill(body.createDiv({ cls: "secretary-fold-body" }));
   }
 
   /** A due task: its tag (overdue, today, tomorrow, or the date) and text; a click opens its line. */
@@ -236,7 +242,7 @@ export class SecretaryPanel extends ItemView {
     const row = body.createDiv({ cls: "secretary-row secretary-clickable secretary-reminder" });
     const text = row.createDiv({ cls: "secretary-reminder-text" });
     if (passed) text.createSpan({ cls: "secretary-time secretary-warning", text: t.overdueTag });
-    text.createSpan({ cls: "secretary-time", text: r.date === today ? r.time : `${r.date} ${r.time}` });
+    text.createSpan({ cls: "secretary-time", text: r.date === today ? r.time : `${shortDate(r.date, today)} ${r.time}` });
     this.plugin.links.render(text.createSpan(), r.text);
     row.addEventListener("click", (event) => {
       if (event.ctrlKey || event.metaKey) void this.plugin.openReminder(r);

@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { appendEntry, checkItem, editItem, folderOf, formatEntry, inboxItems, openItems, removeItem, withoutStamp } from "../src/inbox.ts";
+import { appendEntry, checkItem, editItem, folderOf, formatEntry, inboxItems, openItems, removeItem, shortDate, splitStamp, withoutStamp } from "../src/inbox.ts";
 
 test("only unchecked items count", () => {
   const note = ["# 受信箱", "", "- [ ] 2026-11-19 10:32 図書館の本", "- [x] done", "* [ ] star bullet", "  - [ ] indented", "- [-] cancelled", "- plain"].join("\r\n");
@@ -53,4 +53,12 @@ test("editing an item changes its text and keeps when it was added", () => {
   assert.equal(editItem(note, first, "図書館の本を\n返す"), ["# 受信箱", "- [ ] 2026-11-19 10:32 図書館の本を 返す", "  * [ ] 歯医者"].join("\r\n"));
   assert.equal(editItem(note, second, "歯医者に電話"), ["# 受信箱", "- [ ] 2026-11-19 10:32 図書館の本", "  * [ ] 歯医者に電話"].join("\r\n"));
   assert.equal(editItem(note.replace("図書館の本", "x"), first, "y"), null);
+});
+
+test("the panel shows when an item was added in short, apart from its text", () => {
+  assert.deepEqual(splitStamp("2026-11-09 9:05 図書館の本", "2026-11-25"), { stamp: "11/9 9:05", text: "図書館の本" });
+  assert.deepEqual(splitStamp("2025-12-31 23:59 old", "2026-11-25"), { stamp: "2025-12-31 23:59", text: "old" });
+  assert.equal(splitStamp("no stamp here", "2026-11-25"), null);
+  assert.equal(shortDate("2026-01-02", "2026-11-25"), "1/2");
+  assert.equal(shortDate("2027-01-02", "2026-11-25"), "2027-01-02");
 });

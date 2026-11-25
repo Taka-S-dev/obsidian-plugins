@@ -68,6 +68,23 @@ export function withoutStamp(text: string): string {
   return text.replace(/^\d{4}-\d{2}-\d{2}\s+\d{1,2}:\d{2}\s+/, "");
 }
 
+/**
+ * An item split into when it was added, shortened for the panel, and its text:
+ * "2026-11-19 10:32 text" -> { stamp: "11/19 10:32", text: "text" } in 2026. Null without a stamp.
+ */
+export function splitStamp(item: string, today: string): { stamp: string; text: string } | null {
+  const m = /^(\d{4}-\d{2}-\d{2})\s+(\d{1,2}:\d{2})\s+/.exec(item);
+  if (!m) return null;
+  return { stamp: `${shortDate(m[1], today)} ${m[2]}`, text: item.slice(m[0].length) };
+}
+
+/** A YYYY-MM-DD date as M/D in the current year, and as it is in any other. */
+export function shortDate(date: string, today: string): string {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date);
+  if (!m || m[1] !== today.slice(0, 4)) return date;
+  return `${Number(m[2])}/${Number(m[3])}`;
+}
+
 /** One inbox line. Line breaks in the text become spaces so the item stays one line. */
 export function formatEntry(now: Date, text: string): string {
   return `- [ ] ${ymd(now)} ${hm(now)} ${text.replace(/\s*[\r\n]+\s*/g, " ").trim()}`;
