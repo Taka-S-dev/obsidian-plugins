@@ -14,7 +14,7 @@ import {
   type Rejected,
 } from "./bulletins.ts";
 import { currentSlot, evaluate, loadAnnounced, pickNew, type Announced, type Report, type Snapshot } from "./checks.ts";
-import { checkedLine, DONE_LIMIT, insertLine, lineLabel, loadDone, stillChecked, uncheck, type DoneEntry, type DoneKind } from "./done-today.ts";
+import { checkedLine, doneLabel, DONE_LIMIT, dueStillDone, insertLine, lineLabel, loadDone, replaceLine, restoreLine, stillChecked, uncheck, type DoneEntry, type DoneKind } from "./done-today.ts";
 import { stringsFor, type Strings } from "./i18n.ts";
 import { appendEntry, checkItem, editItem, folderOf, formatEntry, inboxItems, openItems, removeItem, withoutStamp, type InboxItem } from "./inbox.ts";
 import { LineModal } from "./line-modal.ts";
@@ -28,7 +28,8 @@ import type { QueueMessage } from "./queue.ts";
 import { dueReminders, formatReminder, later, markDone, parseReminders, removeReminder, reschedule, tomorrowAt, type Reminder } from "./reminders.ts";
 import { DEFAULT_SETTINGS, mergeSettings, SecretarySettingTab, type SecretarySettings } from "./settings.ts";
 import { defaultQueueDir, ensureQueueDir, listMessages, messageKey, readMessage, rejectMessage, removeMessage } from "./spool.ts";
-import { parseDueTasks, type DueTask } from "./tasks.ts";
+import { checkTask, parseDueTasks, type DueTask } from "./tasks.ts";
+import { tasksToggle } from "./obsidian-internals.ts";
 import { asNotePath } from "./paths.ts";
 import { hm, ymd } from "./time.ts";
 
@@ -377,7 +378,10 @@ export default class Secretary extends Plugin {
     };
     this.snapshot = snap;
     // Yesterday's entries go at midnight, and ones unchecked or deleted in the note by hand at once.
-    const done = stillChecked(stillChecked(loadDone(this.doneToday, today), "inbox", inboxText), "reminder", remindersText);
+    let done = stillChecked(stillChecked(loadDone(this.doneToday, today), "inbox", inboxText), "reminder", remindersText);
+    for (const path of new Set(done.flatMap((e) => (e.kind === "due" && e.path ? [e.path] : [])))) {
+      done = dueStillDone(done, path, await this.readNote(path));
+    }
     const doneChanged = done.length !== this.doneToday.length;
     this.doneToday = done;
     this.report = evaluate(snap, currentSlot(this.settings.summaryTimes, now), this.s);
@@ -491,16 +495,15 @@ export default class Secretary extends Plugin {
   /** Checks a reminder off and keeps it for Undo. */
   private async markReminderDone(r: Reminder): Promise<boolean> {
     const ok = await this.updateReminder(r, (content) => markDone(content, r));
-    if (ok) await this.recordDone("reminder", r.raw);
+    if (ok) await this.recordDone(checked("reminder", r.raw));
     return ok;
   }
 
   /** Keeps what was just checked off for today, and offers to undo it at once. */
-  private async recordDone(kind: DoneKind, raw: string): Promise<void> {
-    const entry: DoneEntry = { kind, line: checkedLine(raw), date: ymd(new Date()) };
+  private async recordDone(entry: DoneEntry): Promise<void> {
     this.doneToday = [...this.doneToday, entry].slice(-DONE_LIMIT);
     await this.persist();
-    this.offerUndo(this.s.panel.doneNotice(lineLabel(entry.line, entry.date)), () => this.undoDone(entry));
+    this.offerUndo(this.s.panel.doneNotice(doneLabel(entry, entry.date)), () => this.undoDone(entry));
   }
 
   /** A notice saying what was just done, with Undo, for a few seconds. */
@@ -555,14 +558,18 @@ export default class Secretary extends Plugin {
     });
   }
 
-  /** Unchecks a reminder or inbox item checked off today, from the notice or the panel. */
+  /**
+   * Unchecks a reminder or inbox item checked off today, from the notice or the panel. A due task
+   * gets back the line it was, and a repeating one loses the next one's line added with it.
+   */
   async undoDone(entry: DoneEntry): Promise<void> {
-    const file = this.app.vault.getAbstractFileByPath(entry.kind === "reminder" ? this.remindersPath() : this.inboxPath());
+    const path = entry.kind === "reminder" ? this.remindersPath() : entry.kind === "inbox" ? this.inboxPath() : entry.path ?? "";
+    const file = this.app.vault.getAbstractFileByPath(path);
     let ok = false;
     if (file instanceof TFile) {
       try {
         await this.app.vault.process(file, (content) => {
-          const next = uncheck(content, entry.line);
+          const next = entry.kind === "due" ? restoreLine(content, entry.line, entry.before ?? "") : uncheck(content, entry.line);
           if (next === null) return content;
           ok = true;
           return next;
@@ -621,7 +628,7 @@ export default class Secretary extends Plugin {
       raw = item.raw;
       return checkItem(content, item);
     });
-    if (ok) await this.recordDone("inbox", raw);
+    if (ok) await this.recordDone(checked("inbox", raw));
     else new Notice(this.s.capture.inboxChanged, NOTICE_MS);
     await this.tick();
   }
@@ -647,6 +654,34 @@ export default class Secretary extends Plugin {
       console.error("[secretary] could not update an inbox line", e);
     }
     return removed;
+  }
+
+  /**
+   * Checks a due task off from the panel. The Tasks plugin does it when it is there, so the done
+   * date and a repeating task's next one are written as it writes them; otherwise only the checkbox
+   * changes. Nothing is written if the line is no longer as the panel read it.
+   */
+  async completeTask(task: DueTask): Promise<void> {
+    const file = this.app.vault.getAbstractFileByPath(task.path);
+    let after: string | null = null;
+    if (file instanceof TFile) {
+      try {
+        const toggle = tasksToggle(this.app);
+        await this.app.vault.process(file, (content) => {
+          const line = toggle ? toggle(task.raw, task.path).replace(/\r/g, "") : checkTask(task.raw);
+          const next = line && line !== task.raw ? replaceLine(content, task.line, task.raw, line) : null;
+          if (next === null) return content;
+          after = line;
+          return next;
+        });
+      } catch (e) {
+        console.error("[secretary] could not check off a due task", e);
+      }
+    }
+    const line = after as string | null;
+    if (line !== null) await this.recordDone({ kind: "due", line, date: ymd(new Date()), path: task.path, before: task.raw });
+    else new Notice(this.s.panel.dueChanged, NOTICE_MS);
+    await this.tick();
   }
 
   /** Opens the note of a due task at its line. */
@@ -810,4 +845,9 @@ export default class Secretary extends Plugin {
       return ok;
     }).open();
   }
+}
+
+/** An entry for a reminder or inbox line just checked off. */
+function checked(kind: DoneKind, raw: string): DoneEntry {
+  return { kind, line: checkedLine(raw), date: ymd(new Date()) };
 }

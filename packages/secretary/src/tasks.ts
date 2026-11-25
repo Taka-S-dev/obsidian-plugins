@@ -18,6 +18,8 @@ export interface DueTask {
   text: string;
   /** YYYY-MM-DD */
   due: string;
+  /** The line as it was read, without a trailing "\r", so a write can check it is still there. */
+  raw: string;
 }
 
 const TASK = /^\s*(?:[-*+]|\d+[.)])\s+\[(.)\]\s+(.*)$/;
@@ -43,11 +45,32 @@ export function parseDueTasks(content: string, path: string): DueTask[] {
     if (!due) return;
     const [, y, mo, d] = due;
     if (!validDate(+y, +mo, +d)) return;
-    const cut = m[2].search(FIELDS);
-    const raw = (cut < 0 ? m[2] : m[2].slice(0, cut)).trim() || m[2].trim();
-    out.push({ path, line, text: plainLinks(raw) || raw, due: `${y}-${mo}-${d}` });
+    out.push({ path, line, text: words(m[2]), due: `${y}-${mo}-${d}`, raw: rawLine.replace(/\r$/, "") });
   });
   return out;
+}
+
+/** A task's text without the Tasks fields, with links shown as their words. */
+function words(body: string): string {
+  const cut = body.search(FIELDS);
+  const text = (cut < 0 ? body : body.slice(0, cut)).trim() || body.trim();
+  return plainLinks(text) || text;
+}
+
+/** A task line as the panel shows it: no checkbox and no Tasks fields. */
+export function taskText(raw: string): string {
+  const m = raw.match(TASK);
+  return words(m ? m[2] : raw);
+}
+
+/**
+ * A task line checked off where the Tasks plugin is not there to do it: only the checkbox changes.
+ * Null for a line that is not an open task.
+ */
+export function checkTask(raw: string): string | null {
+  const m = raw.match(TASK);
+  if (!m || CLOSED.has(m[1])) return null;
+  return raw.replace(/\[.\]/, "[x]");
 }
 
 /**

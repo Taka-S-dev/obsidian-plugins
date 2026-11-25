@@ -131,6 +131,7 @@ const en = {
     deletedNotice: (text: string) => `Deleted: ${text}`,
     restoreFailed: "The note could not be found, so the line could not be put back.",
     undoFailed: "The line changed in the note, so it could not be undone. Edit the note.",
+    dueChanged: "The task's line had changed in its note, so it was not checked off. Open the note to check it.",
   },
   links: {
     open: "Open",
@@ -321,6 +322,7 @@ const ja: Strings = {
     deletedNotice: (text) => `削除: ${text}`,
     restoreFailed: "ノートが見つからず、行を元に戻せませんでした。",
     undoFailed: "ノートの行が変わっていたため、元に戻せませんでした。ノートを直してください。",
+    dueChanged: "タスクの行がノートで変わっていたため、完了にしませんでした。ノートを開いて確かめてください。",
   },
   links: {
     open: "開く",
