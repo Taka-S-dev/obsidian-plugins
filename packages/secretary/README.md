@@ -22,7 +22,7 @@ The interface follows Obsidian's language setting (Japanese for Japanese, Englis
 ## What it does
 
 - **Add to inbox**: a one-line input appends `- [ ] 2026-11-20 10:32 text` to the end of the inbox. The idea is to add without deciding where things belong, then sort them later in one go.
-- **Add a reminder**: write what to be reminded of and pick the date (today by default) and time from the calendar and clock. Text that starts with a time, `15:00 text` (today, or tomorrow once 15:00 has passed) or `2026-11-21 09:30 text`, fills them in, so it can be typed in one go. A line under the fields says when it will go off.
+- **Add a reminder**: write what to be reminded of and pick the date (today by default) and time from the calendar and clock. The clock button opens a list of hours and minutes (in fives) that stops at its ends rather than going round from 23 to 0; any other minute can be typed in the field. Text that starts with a time, `15:00 text` (today, or tomorrow once 15:00 has passed) or `2026-11-21 09:30 text`, fills them in, so it can be typed in one go. A line under the fields says when it will go off.
 - **Queue**: takes messages that other programs drop in. See "Queue" below for the contract.
 - **Heartbeat**: every minute (and right away when the queue or the notes change):
   - routes queued messages to notices, reminders or the inbox;

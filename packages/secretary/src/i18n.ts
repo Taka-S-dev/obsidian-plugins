@@ -61,6 +61,7 @@ const en = {
     reminderText: "What",
     reminderDate: "Date",
     reminderTime: "Time",
+    pickTime: "Pick a time",
     reminderProblem: {
       text: "Write what to be reminded of.",
       date: "Pick a date.",
@@ -274,6 +275,7 @@ const ja: Strings = {
     reminderText: "内容",
     reminderDate: "日付",
     reminderTime: "時刻",
+    pickTime: "時刻を選ぶ",
     reminderProblem: {
       text: "知らせてほしい内容を書いてください。",
       date: "日付を選んでください。",

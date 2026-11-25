@@ -1,5 +1,6 @@
 import { App, Modal, Setting } from "obsidian";
 import { linkOnPaste } from "./paste-link.ts";
+import { attachTimePicker } from "./time-picker.ts";
 import { checkReminder, daysFrom, parseReminderInput } from "./reminders.ts";
 import type { Strings } from "./i18n.ts";
 import { ymd } from "./time.ts";
@@ -20,6 +21,7 @@ export interface ReminderModalStart {
 
 export class ReminderModal extends Modal {
   private submitted = false;
+  private closePicker: () => void = () => {};
 
   /** `start` fills the fields, to move an existing reminder; `onCancel` runs if nothing was added. */
   constructor(
@@ -51,6 +53,7 @@ export class ReminderModal extends Modal {
     });
     new Setting(this.contentEl).setName(c.reminderTime).then((row) => {
       timeEl = row.controlEl.createEl("input", { type: "time", value: this.start?.time ?? "" });
+      this.closePicker = attachTimePicker(this.app, timeEl, c.pickTime, this.scope);
     });
     const preview = this.contentEl.createDiv({ cls: "secretary-line-preview" });
     const button = this.contentEl.createDiv({ cls: "modal-button-container" }).createEl("button", { cls: "mod-cta", text: this.start?.submit ?? c.submit });
@@ -106,6 +109,7 @@ export class ReminderModal extends Modal {
   }
 
   onClose(): void {
+    this.closePicker();
     this.contentEl.empty();
     if (!this.submitted) this.onCancel?.();
   }

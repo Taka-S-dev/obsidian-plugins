@@ -517,3 +517,86 @@
 .secretary-agenda-add:focus-visible {
   opacity: 1;
 }
+
+/* The time field's own list of hours and minutes (see time-picker.ts), in place of the system's,
+   which goes round. Its clock button replaces the system's. */
+.secretary-time-input::-webkit-calendar-picker-indicator {
+  display: none;
+}
+
+.secretary-time-field {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.secretary-time-field input.secretary-time-input {
+  height: var(--input-height);
+  padding: 0 var(--size-4-2) 0 26px;
+  border: var(--input-border-width, 1px) solid var(--background-modifier-border);
+  border-radius: var(--input-radius, var(--radius-s));
+  background-color: var(--background-modifier-form-field);
+  color: var(--text-normal);
+  font-family: inherit;
+  font-size: var(--font-ui-small);
+  font-variant-numeric: tabular-nums;
+}
+
+.secretary-time-field input.secretary-time-input:focus {
+  border-color: var(--background-modifier-border-focus);
+  box-shadow: 0 0 0 2px var(--background-modifier-border-focus);
+}
+
+.secretary-time-button {
+  position: absolute;
+  left: 4px;
+  padding: 2px;
+}
+
+.secretary-time-button svg {
+  width: var(--icon-s);
+  height: var(--icon-s);
+}
+
+.secretary-time-popup {
+  position: fixed;
+  z-index: var(--layer-menu);
+  display: flex;
+  gap: var(--size-2-2);
+  padding: var(--size-2-3);
+  border: var(--border-width) solid var(--background-modifier-border);
+  border-radius: var(--radius-m);
+  background-color: var(--background-secondary);
+  box-shadow: var(--shadow-s);
+}
+
+.secretary-time-column {
+  height: 224px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  /* The wheel and the list's own edges are enough; scroll bars only crowd the two narrow columns. */
+  scrollbar-width: none;
+}
+
+.secretary-time-column::-webkit-scrollbar {
+  display: none;
+}
+
+.secretary-time-item {
+  min-width: 48px;
+  padding: var(--size-2-3) var(--size-4-2);
+  border-radius: var(--radius-s);
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+
+.secretary-time-item:hover {
+  background-color: var(--background-modifier-hover);
+}
+
+.secretary-time-item.is-selected {
+  background-color: var(--interactive-accent);
+  color: var(--text-on-accent);
+  font-weight: var(--font-semibold);
+}
