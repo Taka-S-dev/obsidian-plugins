@@ -2,7 +2,7 @@ import { ItemView, Menu, setIcon, setTooltip, WorkspaceLeaf } from "obsidian";
 import { unread } from "./bulletins.ts";
 import { lineLabel, type DoneKind } from "./done-today.ts";
 import { tabHeaderEl } from "./obsidian-internals.ts";
-import { dueReminders, laterDays, upcomingToday } from "./reminders.ts";
+import { dueReminders, laterDays, upcomingToday, type Reminder } from "./reminders.ts";
 import { classifyDue, type DueTask } from "./tasks.ts";
 import { hm, ymd } from "./time.ts";
 import type Secretary from "./main";
@@ -20,8 +20,11 @@ interface SectionOptions {
 
 /** The side panel: notices, what is left today, and what waits in the inbox. Redrawn after every check. */
 export class SecretaryPanel extends ItemView {
-  /** Sections whose "done today" list is open; closed again when the panel is reopened. */
-  private openDone = new Set<DoneKind>();
+  /**
+   * Which of the one-line folds are open ("3 after tomorrow", "Done today (2)"); closed again when
+   * the panel is reopened.
+   */
+  private openFolds = new Set<string>();
 
   constructor(leaf: WorkspaceLeaf, private plugin: Secretary) {
     super(leaf);
@@ -98,13 +101,13 @@ export class SecretaryPanel extends ItemView {
         ...due.tomorrow.map((d): [DueTask, string] => [d, t.tomorrowTag]),
       ];
       const dBody = this.section(root, { icon: "calendar-clock", title: t.due, count: due.overdue.length + due.today.length, buttons: [] });
-      if (rows.length === 0) dBody.createDiv({ cls: "secretary-empty", text: t.noDue });
-      for (const [task, tag] of rows) {
-        const row = dBody.createDiv({ cls: "secretary-row secretary-clickable" });
-        row.createSpan({ cls: tag === t.overdueTag ? "secretary-time secretary-warning" : "secretary-time", text: tag });
-        row.createSpan({ text: task.text });
-        row.setAttr("title", `${task.due}  ${task.path}`);
-        row.addEventListener("click", () => void this.plugin.openTask(task));
+      if (rows.length === 0 && due.later.length === 0) dBody.createDiv({ cls: "secretary-empty", text: t.noDue });
+      for (const [task, tag] of rows) this.dueRow(dBody, task, tag, tag === t.overdueTag);
+      // Later due dates are counted on one line, as later reminders are, and listed when it is opened.
+      if (due.later.length > 0) {
+        this.fold(dBody, "due-later", t.laterDue(due.later.length), (body) => {
+          for (const task of due.later) this.dueRow(body, task, task.due, false);
+        });
       }
     }
 
@@ -125,33 +128,14 @@ export class SecretaryPanel extends ItemView {
     if (upcoming.length === 0) rBody.createDiv({ cls: "secretary-empty", text: t.noReminders });
     // Clicking a reminder edits its date, time and text; Ctrl+click, or its menu, opens its line in
     // the note (to delete it there). Done checks it off.
-    for (const r of upcoming) {
-      const row = rBody.createDiv({ cls: "secretary-row secretary-clickable secretary-reminder" });
-      const text = row.createDiv({ cls: "secretary-reminder-text" });
-      if (passed.includes(r)) text.createSpan({ cls: "secretary-time secretary-warning", text: t.overdueTag });
-      text.createSpan({ cls: "secretary-time", text: r.date === ymd(now) ? r.time : `${r.date} ${r.time}` });
-      this.plugin.links.render(text.createSpan(), r.text);
-      row.addEventListener("click", (event) => {
-        if (event.ctrlKey || event.metaKey) void this.plugin.openReminder(r);
-        else this.plugin.editReminder(r);
-      });
-      setTooltip(row, t.reminderTip);
-      row.addEventListener("contextmenu", (event) => {
-        const menu = new Menu();
-        menu.addItem((i) => i.setTitle(t.edit).setIcon("pencil").onClick(() => this.plugin.editReminder(r)));
-        menu.addItem((i) => i.setTitle(t.openLine).setIcon("file-text").onClick(() => void this.plugin.openReminder(r)));
-        menu.addItem((i) => i.setTitle(t.done).setIcon("check").onClick(() => void this.plugin.completeReminder(r)));
-        menu.addSeparator();
-        menu.addItem((i) => i.setTitle(t.delete).setIcon("trash-2").setWarning(true).onClick(() => void this.plugin.deleteReminder(r)));
-        menu.showAtMouseEvent(event);
-      });
-      row.createEl("button", { text: t.done }).addEventListener("click", (event) => {
-        event.stopPropagation();
-        void this.plugin.completeReminder(r);
+    for (const r of upcoming) this.reminderRow(rBody, r, ymd(now), passed.includes(r));
+    // Reminders on later days are counted on one line and listed, soonest first, when it is opened.
+    const later = laterDays(reminders, now).sort((a, b) => `${a.date} ${a.time}`.localeCompare(`${b.date} ${b.time}`));
+    if (later.length > 0) {
+      this.fold(rBody, "reminders-later", t.later(later.length), (body) => {
+        for (const r of later) this.reminderRow(body, r, ymd(now), false);
       });
     }
-    const later = laterDays(reminders, now).length;
-    if (later > 0) rBody.createDiv({ cls: "secretary-note", text: t.later(later) });
     this.doneList(rBody, "reminder", ymd(now));
 
     const inbox = snap?.inbox ?? [];
@@ -206,22 +190,72 @@ export class SecretaryPanel extends ItemView {
     const t = this.plugin.s.panel;
     const entries = this.plugin.doneToday.filter((e) => e.kind === kind);
     if (entries.length === 0) return;
-    const open = this.openDone.has(kind);
-    const toggle = body.createDiv({ cls: "secretary-note secretary-clickable secretary-done-toggle" });
-    setIcon(toggle.createSpan({ cls: "secretary-done-icon" }), open ? "chevron-down" : "chevron-right");
-    toggle.createSpan({ text: t.doneToday(entries.length) });
+    this.fold(body, `done-${kind}`, t.doneToday(entries.length), (list) => {
+      // The latest first.
+      for (const entry of [...entries].reverse()) {
+        const row = list.createDiv({ cls: "secretary-row secretary-reminder secretary-done" });
+        row.createDiv({ cls: "secretary-reminder-text", text: lineLabel(entry.line, today) });
+        row.createEl("button", { text: t.undo }).addEventListener("click", () => void this.plugin.undoDone(entry));
+      }
+    });
+  }
+
+  /**
+   * One muted line with a chevron that opens a list under it, so what is not for now takes a single
+   * line until it is wanted.
+   */
+  private fold(body: HTMLElement, key: string, label: string, fill: (body: HTMLElement) => void): void {
+    const open = this.openFolds.has(key);
+    const toggle = body.createDiv({ cls: "secretary-note secretary-clickable secretary-fold" });
+    setIcon(toggle.createSpan({ cls: "secretary-fold-icon" }), open ? "chevron-down" : "chevron-right");
+    toggle.createSpan({ text: label });
+    toggle.setAttr("aria-expanded", String(open));
     toggle.addEventListener("click", () => {
-      if (open) this.openDone.delete(kind);
-      else this.openDone.add(kind);
+      if (open) this.openFolds.delete(key);
+      else this.openFolds.add(key);
       this.render();
     });
-    if (!open) return;
-    // The latest first.
-    for (const entry of [...entries].reverse()) {
-      const row = body.createDiv({ cls: "secretary-row secretary-reminder secretary-done" });
-      row.createDiv({ cls: "secretary-reminder-text", text: lineLabel(entry.line, today) });
-      row.createEl("button", { text: t.undo }).addEventListener("click", () => void this.plugin.undoDone(entry));
-    }
+    if (open) fill(body);
+  }
+
+  /** A due task: its tag (overdue, today, tomorrow, or the date) and text; a click opens its line. */
+  private dueRow(body: HTMLElement, task: DueTask, tag: string, warn: boolean): void {
+    const row = body.createDiv({ cls: "secretary-row secretary-clickable" });
+    row.createSpan({ cls: warn ? "secretary-time secretary-warning" : "secretary-time", text: tag });
+    row.createSpan({ text: task.text });
+    row.setAttr("title", `${task.due}  ${task.path}`);
+    row.addEventListener("click", () => void this.plugin.openTask(task));
+  }
+
+  /**
+   * A reminder. Clicking it edits its date, time and text; Ctrl+click, or its menu, opens its line in
+   * the note. Done checks it off.
+   */
+  private reminderRow(body: HTMLElement, r: Reminder, today: string, passed: boolean): void {
+    const t = this.plugin.s.panel;
+    const row = body.createDiv({ cls: "secretary-row secretary-clickable secretary-reminder" });
+    const text = row.createDiv({ cls: "secretary-reminder-text" });
+    if (passed) text.createSpan({ cls: "secretary-time secretary-warning", text: t.overdueTag });
+    text.createSpan({ cls: "secretary-time", text: r.date === today ? r.time : `${r.date} ${r.time}` });
+    this.plugin.links.render(text.createSpan(), r.text);
+    row.addEventListener("click", (event) => {
+      if (event.ctrlKey || event.metaKey) void this.plugin.openReminder(r);
+      else this.plugin.editReminder(r);
+    });
+    setTooltip(row, t.reminderTip);
+    row.addEventListener("contextmenu", (event) => {
+      const menu = new Menu();
+      menu.addItem((i) => i.setTitle(t.edit).setIcon("pencil").onClick(() => this.plugin.editReminder(r)));
+      menu.addItem((i) => i.setTitle(t.openLine).setIcon("file-text").onClick(() => void this.plugin.openReminder(r)));
+      menu.addItem((i) => i.setTitle(t.done).setIcon("check").onClick(() => void this.plugin.completeReminder(r)));
+      menu.addSeparator();
+      menu.addItem((i) => i.setTitle(t.delete).setIcon("trash-2").setWarning(true).onClick(() => void this.plugin.deleteReminder(r)));
+      menu.showAtMouseEvent(event);
+    });
+    row.createEl("button", { text: t.done }).addEventListener("click", (event) => {
+      event.stopPropagation();
+      void this.plugin.completeReminder(r);
+    });
   }
 
   private section(root: HTMLElement, o: SectionOptions): HTMLElement {

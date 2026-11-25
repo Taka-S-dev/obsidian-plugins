@@ -229,22 +229,23 @@
   box-shadow: 0 0 0 2px var(--tab-background-active, var(--background-primary));
 }
 
-/* "Done today": one muted line that opens what was checked off today, struck through, with Undo. */
-.secretary-done-toggle {
+/* A one-line fold ("3 on later days", "Done today (2)") that opens a list under it. */
+.secretary-fold {
   display: flex;
   align-items: center;
   gap: var(--size-2-1);
 }
 
-.secretary-done-icon {
+.secretary-fold-icon {
   display: flex;
 }
 
-.secretary-done-icon svg {
+.secretary-fold-icon svg {
   width: var(--icon-xs);
   height: var(--icon-xs);
 }
 
+/* What was checked off today, struck through, with Undo. */
 .secretary-done .secretary-reminder-text {
   color: var(--text-muted);
   text-decoration: line-through;

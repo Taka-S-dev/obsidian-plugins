@@ -75,9 +75,11 @@ export interface DueSummary {
   today: DueTask[];
   /** Due tomorrow, so it can be prepared for. */
   tomorrow: DueTask[];
+  /** Due after tomorrow; the panel counts them and lists them when opened. */
+  later: DueTask[];
 }
 
-/** Splits open tasks by how close their due date is to now (local dates). Later dates are left out. */
+/** Splits open tasks by how close their due date is to now (local dates), soonest first. */
 export function classifyDue(tasks: DueTask[], now: Date): DueSummary {
   const today = ymd(now);
   const tomorrow = ymd(new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1));
@@ -86,5 +88,6 @@ export function classifyDue(tasks: DueTask[], now: Date): DueSummary {
     overdue: sorted.filter((t) => t.due < today),
     today: sorted.filter((t) => t.due === today),
     tomorrow: sorted.filter((t) => t.due === tomorrow),
+    later: sorted.filter((t) => t.due > tomorrow),
   };
 }

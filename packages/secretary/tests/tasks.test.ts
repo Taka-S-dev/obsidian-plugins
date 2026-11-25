@@ -51,6 +51,13 @@ test("tomorrow crosses the end of a month", () => {
   assert.equal(due.tomorrow.length, 1);
 });
 
+test("tasks due after tomorrow are kept apart, soonest first", () => {
+  const lines = ["- [ ] c 📅 2027-01-05", "- [ ] a 📅 2026-11-27", "- [ ] b 📅 2026-11-26"].join("\n");
+  const due = classifyDue(parseDueTasks(lines, "a.md"), new Date(2026, 10, 25, 9, 0));
+  assert.deepEqual(due.tomorrow.map((t) => t.text), ["b"]);
+  assert.deepEqual(due.later.map((t) => t.text), ["a", "c"]);
+});
+
 const snap = (dueTasks: ReturnType<typeof parseDueTasks> | null, now = new Date(2026, 10, 20, 12, 0)) => ({
   now,
   inbox: [],
