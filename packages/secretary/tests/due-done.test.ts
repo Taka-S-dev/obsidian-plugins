@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { doneLabel, dueStillDone, loadDone, replaceLine, restoreLine, type DoneEntry } from "../src/done-today.ts";
-import { checkTask, parseDueTasks, taskText } from "../src/tasks.ts";
+import { addDays, checkTask, daysBetween, parseDueTasks, setDue, taskText } from "../src/tasks.ts";
 
 const TODAY = "2026-11-25";
 
@@ -42,4 +42,19 @@ test("done due tasks are kept for today, named by their words, and dropped once 
   assert.deepEqual(dueStillDone([entry], "a.md", `# x\n${entry.line}\n`), [entry]);
   assert.deepEqual(dueStillDone([entry], "a.md", "# x\n- [ ] Pay the rent 📅 2026-11-25\n"), []);
   assert.deepEqual(dueStillDone([entry], "b.md", "nothing"), [entry]);
+});
+
+test("moving a due date changes only the date, and the panel keeps the links as written", () => {
+  const raw = "- [ ] Send [the quote](https://example.com/q) ⏫ 🔁 every week 📅 2026-11-20 ➕ 2026-11-01";
+  assert.equal(setDue(raw, "2026-11-27"), "- [ ] Send [the quote](https://example.com/q) ⏫ 🔁 every week 📅 2026-11-27 ➕ 2026-11-01");
+  const [task] = parseDueTasks(raw, "a.md");
+  assert.equal(task.body, "Send [the quote](https://example.com/q)");
+  assert.equal(task.text, "Send the quote");
+});
+
+test("days are counted across months and years", () => {
+  assert.equal(addDays("2026-12-30", 7), "2027-01-06");
+  assert.equal(addDays("2026-11-26", 1), "2026-11-27");
+  assert.equal(daysBetween("2026-11-20", "2026-11-26"), 6);
+  assert.equal(daysBetween("2026-02-28", "2026-03-01"), 1);
 });

@@ -16,6 +16,8 @@ export interface DueTask {
   line: number;
   /** The task text without the Tasks fields, with links shown as their words. */
   text: string;
+  /** The same text as written, links included, for the panel to show them as links. */
+  body: string;
   /** YYYY-MM-DD */
   due: string;
   /** The line as it was read, without a trailing "\r", so a write can check it is still there. */
@@ -45,16 +47,42 @@ export function parseDueTasks(content: string, path: string): DueTask[] {
     if (!due) return;
     const [, y, mo, d] = due;
     if (!validDate(+y, +mo, +d)) return;
-    out.push({ path, line, text: words(m[2]), due: `${y}-${mo}-${d}`, raw: rawLine.replace(/\r$/, "") });
+    const body = beforeFields(m[2]);
+    out.push({ path, line, text: plainLinks(body) || body, body, due: `${y}-${mo}-${d}`, raw: rawLine.replace(/\r$/, "") });
   });
   return out;
 }
 
+/** A task's text up to the Tasks fields. */
+function beforeFields(body: string): string {
+  const cut = body.search(FIELDS);
+  return (cut < 0 ? body : body.slice(0, cut)).trim() || body.trim();
+}
+
 /** A task's text without the Tasks fields, with links shown as their words. */
 function words(body: string): string {
-  const cut = body.search(FIELDS);
-  const text = (cut < 0 ? body : body.slice(0, cut)).trim() || body.trim();
+  const text = beforeFields(body);
   return plainLinks(text) || text;
+}
+
+/** The task line with its due date (📅) changed to date; everything else stays as written. */
+export function setDue(raw: string, date: string): string {
+  return raw.replace(DUE, (field) => field.replace(/\d{4}-\d{2}-\d{2}/, date));
+}
+
+/** YYYY-MM-DD, n days after the given one. */
+export function addDays(date: string, n: number): string {
+  const [y, m, d] = date.split("-").map(Number);
+  return ymd(new Date(y, m - 1, d + n));
+}
+
+/** Whole days from one YYYY-MM-DD to another; positive when `to` is later. */
+export function daysBetween(from: string, to: string): number {
+  const ms = (s: string) => {
+    const [y, m, d] = s.split("-").map(Number);
+    return new Date(y, m - 1, d).getTime();
+  };
+  return Math.round((ms(to) - ms(from)) / 86_400_000);
 }
 
 /** A task line as the panel shows it: no checkbox and no Tasks fields. */

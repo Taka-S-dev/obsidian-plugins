@@ -16,7 +16,7 @@ import {
 import { currentSlot, evaluate, loadAnnounced, pickNew, type Announced, type Report, type Snapshot } from "./checks.ts";
 import { checkedLine, doneLabel, DONE_LIMIT, dueStillDone, insertLine, lineLabel, loadDone, replaceLine, restoreLine, stillChecked, uncheck, type DoneEntry, type DoneKind } from "./done-today.ts";
 import { stringsFor, type Strings } from "./i18n.ts";
-import { appendEntry, checkItem, editItem, folderOf, formatEntry, inboxItems, openItems, removeItem, withoutStamp, type InboxItem } from "./inbox.ts";
+import { appendEntry, checkItem, editItem, folderOf, formatEntry, inboxItems, openItems, removeItem, shortDate, withoutStamp, type InboxItem } from "./inbox.ts";
 import { LineModal } from "./line-modal.ts";
 import { plainText } from "./links.ts";
 import { LinkOpener } from "./open-link.ts";
@@ -28,7 +28,8 @@ import type { QueueMessage } from "./queue.ts";
 import { dueReminders, formatReminder, later, markDone, parseReminders, removeReminder, reschedule, tomorrowAt, type Reminder } from "./reminders.ts";
 import { DEFAULT_SETTINGS, mergeSettings, SecretarySettingTab, type SecretarySettings } from "./settings.ts";
 import { defaultQueueDir, ensureQueueDir, listMessages, messageKey, readMessage, rejectMessage, removeMessage } from "./spool.ts";
-import { checkTask, parseDueTasks, type DueTask } from "./tasks.ts";
+import { checkTask, parseDueTasks, setDue, type DueTask } from "./tasks.ts";
+import { DateModal } from "./date-modal.ts";
 import { tasksToggle } from "./obsidian-internals.ts";
 import { asNotePath } from "./paths.ts";
 import { hm, ymd } from "./time.ts";
@@ -682,6 +683,49 @@ export default class Secretary extends Plugin {
     if (line !== null) await this.recordDone({ kind: "due", line, date: ymd(new Date()), path: task.path, before: task.raw });
     else new Notice(this.s.panel.dueChanged, NOTICE_MS);
     await this.tick();
+  }
+
+  /**
+   * Moves a due task's date (📅) from the panel; nothing else in the line changes. A notice offers
+   * Undo, which puts the line back as it was. Nothing is written if the line changed meanwhile.
+   */
+  async moveTask(task: DueTask, date: string): Promise<boolean> {
+    const moved = setDue(task.raw, date);
+    const ok = moved !== task.raw && (await this.rewriteLine(task.path, (content) => replaceLine(content, task.line, task.raw, moved)));
+    if (ok) {
+      this.offerUndo(this.s.panel.dueMoved(shortDate(date, ymd(new Date())), task.text), async () => {
+        if (!(await this.rewriteLine(task.path, (content) => restoreLine(content, moved, task.raw)))) new Notice(this.s.panel.undoFailed, NOTICE_MS);
+        await this.tick();
+      });
+    } else if (moved !== task.raw) {
+      new Notice(this.s.panel.dueChanged, NOTICE_MS);
+    }
+    await this.tick();
+    return ok;
+  }
+
+  /** Picks a new due date for a task in a calendar, starting from the one it has. */
+  pickTaskDate(task: DueTask): void {
+    const options = { title: this.s.panel.dueDateTitle, submit: this.s.capture.save, value: task.due };
+    new DateModal(this.app, options, (date) => this.moveTask(task, date)).open();
+  }
+
+  /** Changes one note through edit; false when the note is missing or edit returns null. */
+  private async rewriteLine(path: string, edit: (content: string) => string | null): Promise<boolean> {
+    const file = this.app.vault.getAbstractFileByPath(path);
+    if (!(file instanceof TFile)) return false;
+    let ok = false;
+    try {
+      await this.app.vault.process(file, (content) => {
+        const next = edit(content);
+        if (next === null) return content;
+        ok = true;
+        return next;
+      });
+    } catch (e) {
+      console.error("[secretary] could not change a task line", e);
+    }
+    return ok;
   }
 
   /** Opens the note of a due task at its line. */

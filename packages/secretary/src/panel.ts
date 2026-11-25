@@ -4,7 +4,7 @@ import { doneLabel, type DoneKind } from "./done-today.ts";
 import { shortDate, splitStamp } from "./inbox.ts";
 import { tabHeaderEl } from "./obsidian-internals.ts";
 import { dueReminders, laterDays, upcomingToday, type Reminder } from "./reminders.ts";
-import { classifyDue, type DueTask } from "./tasks.ts";
+import { addDays, classifyDue, daysBetween, type DueTask } from "./tasks.ts";
 import { hm, ymd } from "./time.ts";
 import type Secretary from "./main";
 
@@ -96,18 +96,19 @@ export class SecretaryPanel extends ItemView {
       dBody.createDiv({ cls: "secretary-empty", text: t.dueOff });
     } else {
       const due = classifyDue(snap?.dueTasks ?? [], now);
-      const rows: [DueTask, string][] = [
-        ...due.overdue.map((d): [DueTask, string] => [d, t.overdueTag]),
-        ...due.today.map((d): [DueTask, string] => [d, t.todayTag]),
-        ...due.tomorrow.map((d): [DueTask, string] => [d, t.tomorrowTag]),
+      // Overdue ones say by how many days, so a long-forgotten one stands out from yesterday's.
+      const rows: [DueTask, string, boolean][] = [
+        ...due.overdue.map((d): [DueTask, string, boolean] => [d, t.overdueDays(daysBetween(d.due, ymd(now))), true]),
+        ...due.today.map((d): [DueTask, string, boolean] => [d, t.todayTag, false]),
+        ...due.tomorrow.map((d): [DueTask, string, boolean] => [d, t.tomorrowTag, false]),
       ];
       const dBody = this.section(root, { icon: "calendar-clock", title: t.due, count: due.overdue.length + due.today.length, buttons: [] });
       if (rows.length === 0 && due.later.length === 0) dBody.createDiv({ cls: "secretary-empty", text: t.noDue });
-      for (const [task, tag] of rows) this.dueRow(dBody, task, tag, tag === t.overdueTag);
+      for (const [task, tag, warn] of rows) this.dueRow(dBody, task, tag, warn, ymd(now));
       // Later due dates are counted on one line, as later reminders are, and listed when it is opened.
       if (due.later.length > 0) {
         this.fold(dBody, "due-later", t.laterDue(due.later.length), (body) => {
-          for (const task of due.later) this.dueRow(body, task, shortDate(task.due, ymd(now)), false);
+          for (const task of due.later) this.dueRow(body, task, shortDate(task.due, ymd(now)), false, ymd(now));
         });
       }
       this.doneList(dBody, "due", ymd(now));
@@ -226,21 +227,27 @@ export class SecretaryPanel extends ItemView {
   }
 
   /**
-   * A due task: its tag (overdue, today, tomorrow, or the date) and text. A click opens its line;
-   * Done, or its menu, checks it off.
+   * A due task: its tag (days overdue, today, tomorrow, or the date) and text, with its links. A
+   * click opens its line; Done, or its menu, checks it off, and the menu also moves its due date.
    */
-  private dueRow(body: HTMLElement, task: DueTask, tag: string, warn: boolean): void {
+  private dueRow(body: HTMLElement, task: DueTask, tag: string, warn: boolean, today: string): void {
     const t = this.plugin.s.panel;
     const row = body.createDiv({ cls: "secretary-row secretary-clickable secretary-reminder" });
     const text = row.createDiv({ cls: "secretary-reminder-text" });
     text.createSpan({ cls: warn ? "secretary-time secretary-warning" : "secretary-time", text: tag });
-    text.createSpan({ text: task.text });
+    this.plugin.links.render(text.createSpan(), task.body);
     row.setAttr("title", `${task.due}  ${task.path}`);
     row.addEventListener("click", () => void this.plugin.openTask(task));
     row.addEventListener("contextmenu", (event) => {
       const menu = new Menu();
       menu.addItem((i) => i.setTitle(t.openLine).setIcon("file-text").onClick(() => void this.plugin.openTask(task)));
       menu.addItem((i) => i.setTitle(t.done).setIcon("check").onClick(() => void this.plugin.completeTask(task)));
+      menu.addSeparator();
+      // From today, so an overdue task moves forward, not to the day after its old date.
+      const tomorrow = addDays(today, 1);
+      if (task.due !== tomorrow) menu.addItem((i) => i.setTitle(t.toTomorrow).setIcon("calendar-plus").onClick(() => void this.plugin.moveTask(task, tomorrow)));
+      menu.addItem((i) => i.setTitle(t.toNextWeek).setIcon("calendar-range").onClick(() => void this.plugin.moveTask(task, addDays(today, 7))));
+      menu.addItem((i) => i.setTitle(t.pickDate).setIcon("calendar").onClick(() => this.plugin.pickTaskDate(task)));
       menu.showAtMouseEvent(event);
     });
     row.createEl("button", { text: t.done }).addEventListener("click", (event) => {
