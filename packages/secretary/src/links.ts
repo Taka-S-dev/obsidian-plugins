@@ -131,3 +131,78 @@ export function filePath(href: string): string | null {
 export function plainText(text: string): string {
   return segments(text).map((s) => s.text).join("");
 }
+
+/**
+ * C:\a b\c -> file:///C:/a b/c, \\server\share\x -> file://server/share/x. Only "%" and "#" are
+ * encoded; everything else, spaces and Japanese included, stays readable inside <...>.
+ */
+export function toFileUri(path: string): string {
+  const escaped = path.replace(/%/g, "%25").replace(/#/g, "%23").replace(/\\/g, "/");
+  if (!path.startsWith("\\\\")) return `file:///${escaped}`;
+  // file://localhost/... means this machine, not the \\localhost share.
+  return /^\\\\localhost(?:\\|$)/i.test(path) ? `file://${escaped}` : `file:${escaped}`;
+}
+
+const ASCII_PUNCTUATION = /[!-/:-@[-`{-~]/;
+// A "_" next to one of these (or the text's edge) can open or close emphasis.
+const FLANKING = /[\s\p{P}\p{S}]/u;
+const ENTITY = /^&(?:#\d+|#x[0-9a-f]+|[a-z][a-z0-9]*);/i;
+
+/**
+ * A path as link text, escaping only what Markdown would read otherwise, so most backslashes stay
+ * single: C:\Users\me stays as it is, since "\" before a letter is not an escape.
+ */
+export function escapeLabel(text: string): string {
+  const chars = Array.from(text);
+  return chars
+    .map((c, i) => {
+      const prev = chars[i - 1];
+      const next = chars[i + 1];
+      switch (c) {
+        case "\\": // \\server, C:\_tmp, and a trailing C:\ that would escape the closing "]".
+          return next === undefined || ASCII_PUNCTUATION.test(next) ? "\\\\" : c;
+        case "[":
+        case "]":
+        case "`":
+        case "$": // "$" starts math in Obsidian.
+          return `\\${c}`;
+        case "_":
+          return prev === undefined || next === undefined || FLANKING.test(prev) || FLANKING.test(next) ? "\\_" : c;
+        case "~":
+        case "=":
+        case "%": // ~~strike~~, ==highlight==, %%comment%%
+          return prev === c || next === c ? `\\${c}` : c;
+        case "&":
+          return ENTITY.test(chars.slice(i).join("")) ? "\\&" : c;
+        default:
+          return c;
+      }
+    })
+    .join("");
+}
+
+/** Text the user selected as a link's label: their own Markdown stays, a stray bracket does not end it. */
+function selectionLabel(text: string): string {
+  const label = text.replace(/(?<!\\)([[\]])/g, "\\$1");
+  // An odd run of backslashes at the end would escape the closing "]".
+  const trailing = /\\*$/.exec(label)![0].length;
+  return trailing % 2 === 1 ? `${label}\\` : label;
+}
+
+/**
+ * What a pasted path or web address becomes in a reminder or inbox field: a link, labelled with
+ * the selection if there is one, else the path itself. Null for anything else (more than one line,
+ * or text that is not a path or an address), which is pasted as it is. Explorer's "Copy as path"
+ * wraps the path in quotes; they are dropped.
+ */
+export function pastedLink(clipboard: string, selection = ""): string | null {
+  const item = clipboard.trim().replace(/^"(.*)"$/, "$1");
+  if (item === "" || /[\r\n]/.test(item)) return null;
+  const label = selection.trim();
+  if (/^https?:\/\/\S+$/i.test(item)) {
+    const dest = item.replace(/</g, "%3C").replace(/>/g, "%3E");
+    return label ? `[${selectionLabel(label)}](<${dest}>)` : `<${dest}>`;
+  }
+  if (!isWindowsPath(item)) return null;
+  return `[${label ? selectionLabel(label) : escapeLabel(item)}](<${toFileUri(item)}>)`;
+}

@@ -129,6 +129,7 @@ The text of a reminder, an inbox item or a notice can hold links, written as sta
 - [ ] 2026-11-25 09:13 Read [[Meeting notes|the notes]]
 ```
 
+- A Windows path (`C:\…` or `\\server\…`) or an `https://` address pasted into the inbox or reminder field goes in as such a link, labelled with the selection if there is one. The quotes Explorer's "Copy as path" adds are dropped.
 - Web pages open in the browser, notes in Obsidian.
 - A `file://` link opens a folder in Explorer, brought to the front, and a file with its application. The button after it copies the path; right-click offers **Open** and **Copy path** too.
 - A click outside a link does what it did before (a reminder or an inbox item opens for editing).

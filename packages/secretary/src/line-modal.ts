@@ -1,4 +1,5 @@
 import { App, Modal } from "obsidian";
+import { linkOnPaste } from "./paste-link.ts";
 
 export interface LineModalOptions {
   title: string;
@@ -48,6 +49,7 @@ export class LineModal extends Modal {
         else input.focus();
       });
     };
+    linkOnPaste(input);
     input.addEventListener("input", update);
     input.addEventListener("keydown", (e) => {
       if (e.key !== "Enter" || e.isComposing) return;

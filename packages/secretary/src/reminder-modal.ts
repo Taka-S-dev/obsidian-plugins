@@ -1,4 +1,5 @@
 import { App, Modal, Setting } from "obsidian";
+import { linkOnPaste } from "./paste-link.ts";
 import { checkReminder, daysFrom, parseReminderInput } from "./reminders.ts";
 import type { Strings } from "./i18n.ts";
 import { ymd } from "./time.ts";
@@ -43,6 +44,7 @@ export class ReminderModal extends Modal {
       textEl = t.inputEl;
       t.setPlaceholder(c.reminderPlaceholder).setValue(this.start?.text ?? "");
       textEl.addClass("secretary-reminder-text");
+      linkOnPaste(textEl);
     });
     new Setting(this.contentEl).setName(c.reminderDate).then((row) => {
       dateEl = row.controlEl.createEl("input", { type: "date", value: this.start?.date ?? ymd(new Date()) });
