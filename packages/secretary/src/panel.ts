@@ -4,7 +4,8 @@ import { doneLabel, type DoneKind } from "./done-today.ts";
 import { shortDate, splitStamp } from "./inbox.ts";
 import { tabHeaderEl } from "./obsidian-internals.ts";
 import { dueReminders, laterDays, upcomingToday, type Reminder } from "./reminders.ts";
-import { addDays, classifyDue, daysBetween, type DueTask } from "./tasks.ts";
+import { classifyDue, daysBetween, type DueTask } from "./tasks.ts";
+import { dueRow, reminderRow } from "./rows.ts";
 import { hm, ymd } from "./time.ts";
 import type Secretary from "./main";
 
@@ -37,6 +38,12 @@ export class SecretaryPanel extends ItemView {
 
   getDisplayText(): string {
     return this.plugin.s.panel.title;
+  }
+
+  /** The tab's right-click menu and the "More options" menu also open the agenda. */
+  onPaneMenu(menu: Menu, source: string): void {
+    menu.addItem((i) => i.setTitle(this.plugin.s.commands.openAgenda).setIcon("calendar-days").setSection("open").onClick(() => void this.plugin.openAgenda()));
+    super.onPaneMenu(menu, source);
   }
 
   getIcon(): string {
@@ -102,13 +109,14 @@ export class SecretaryPanel extends ItemView {
         ...due.today.map((d): [DueTask, string, boolean] => [d, t.todayTag, false]),
         ...due.tomorrow.map((d): [DueTask, string, boolean] => [d, t.tomorrowTag, false]),
       ];
-      const dBody = this.section(root, { icon: "calendar-clock", title: t.due, count: due.overdue.length + due.today.length, buttons: [] });
+      const agendaButton = { text: this.plugin.s.commands.openAgenda, icon: "calendar-days", onClick: () => void this.plugin.openAgenda() };
+      const dBody = this.section(root, { icon: "calendar-clock", title: t.due, count: due.overdue.length + due.today.length, buttons: [agendaButton] });
       if (rows.length === 0 && due.later.length === 0) dBody.createDiv({ cls: "secretary-empty", text: t.noDue });
-      for (const [task, tag, warn] of rows) this.dueRow(dBody, task, tag, warn, ymd(now));
+      for (const [task, tag, warn] of rows) dueRow(this.plugin, dBody, task, tag, warn, ymd(now));
       // Later due dates are counted on one line, as later reminders are, and listed when it is opened.
       if (due.later.length > 0) {
         this.fold(dBody, "due-later", t.laterDue(due.later.length), (body) => {
-          for (const task of due.later) this.dueRow(body, task, shortDate(task.due, ymd(now)), false, ymd(now));
+          for (const task of due.later) dueRow(this.plugin, body, task, shortDate(task.due, ymd(now)), false, ymd(now));
         });
       }
       this.doneList(dBody, "due", ymd(now));
@@ -131,12 +139,12 @@ export class SecretaryPanel extends ItemView {
     if (upcoming.length === 0) rBody.createDiv({ cls: "secretary-empty", text: t.noReminders });
     // Clicking a reminder edits its date, time and text; Ctrl+click, or its menu, opens its line in
     // the note (to delete it there). Done checks it off.
-    for (const r of upcoming) this.reminderRow(rBody, r, ymd(now), passed.includes(r));
+    for (const r of upcoming) reminderRow(this.plugin, rBody, r, when(r, ymd(now)), passed.includes(r));
     // Reminders on later days are counted on one line and listed, soonest first, when it is opened.
     const later = laterDays(reminders, now).sort((a, b) => `${a.date} ${a.time}`.localeCompare(`${b.date} ${b.time}`));
     if (later.length > 0) {
       this.fold(rBody, "reminders-later", t.later(later.length), (body) => {
-        for (const r of later) this.reminderRow(body, r, ymd(now), false);
+        for (const r of later) reminderRow(this.plugin, body, r, when(r, ymd(now)), false);
       });
     }
     this.doneList(rBody, "reminder", ymd(now));
@@ -226,67 +234,6 @@ export class SecretaryPanel extends ItemView {
     if (open) fill(body.createDiv({ cls: "secretary-fold-body" }));
   }
 
-  /**
-   * A due task: its tag (days overdue, today, tomorrow, or the date) and text, with its links. A
-   * click opens its line; Done, or its menu, checks it off, and the menu also moves its due date.
-   */
-  private dueRow(body: HTMLElement, task: DueTask, tag: string, warn: boolean, today: string): void {
-    const t = this.plugin.s.panel;
-    const row = body.createDiv({ cls: "secretary-row secretary-clickable secretary-reminder" });
-    const text = row.createDiv({ cls: "secretary-reminder-text" });
-    text.createSpan({ cls: warn ? "secretary-time secretary-warning" : "secretary-time", text: tag });
-    this.plugin.links.render(text.createSpan(), task.body);
-    row.setAttr("title", `${task.due}  ${task.path}`);
-    row.addEventListener("click", () => void this.plugin.openTask(task));
-    row.addEventListener("contextmenu", (event) => {
-      const menu = new Menu();
-      menu.addItem((i) => i.setTitle(t.openLine).setIcon("file-text").onClick(() => void this.plugin.openTask(task)));
-      menu.addItem((i) => i.setTitle(t.done).setIcon("check").onClick(() => void this.plugin.completeTask(task)));
-      menu.addSeparator();
-      // From today, so an overdue task moves forward, not to the day after its old date.
-      const tomorrow = addDays(today, 1);
-      if (task.due !== tomorrow) menu.addItem((i) => i.setTitle(t.toTomorrow).setIcon("calendar-plus").onClick(() => void this.plugin.moveTask(task, tomorrow)));
-      menu.addItem((i) => i.setTitle(t.toNextWeek).setIcon("calendar-range").onClick(() => void this.plugin.moveTask(task, addDays(today, 7))));
-      menu.addItem((i) => i.setTitle(t.pickDate).setIcon("calendar").onClick(() => this.plugin.pickTaskDate(task)));
-      menu.showAtMouseEvent(event);
-    });
-    row.createEl("button", { text: t.done }).addEventListener("click", (event) => {
-      event.stopPropagation();
-      void this.plugin.completeTask(task);
-    });
-  }
-
-  /**
-   * A reminder. Clicking it edits its date, time and text; Ctrl+click, or its menu, opens its line in
-   * the note. Done checks it off.
-   */
-  private reminderRow(body: HTMLElement, r: Reminder, today: string, passed: boolean): void {
-    const t = this.plugin.s.panel;
-    const row = body.createDiv({ cls: "secretary-row secretary-clickable secretary-reminder" });
-    const text = row.createDiv({ cls: "secretary-reminder-text" });
-    if (passed) text.createSpan({ cls: "secretary-time secretary-warning", text: t.overdueTag });
-    text.createSpan({ cls: "secretary-time", text: r.date === today ? r.time : `${shortDate(r.date, today)} ${r.time}` });
-    this.plugin.links.render(text.createSpan(), r.text);
-    row.addEventListener("click", (event) => {
-      if (event.ctrlKey || event.metaKey) void this.plugin.openReminder(r);
-      else this.plugin.editReminder(r);
-    });
-    setTooltip(row, t.reminderTip);
-    row.addEventListener("contextmenu", (event) => {
-      const menu = new Menu();
-      menu.addItem((i) => i.setTitle(t.edit).setIcon("pencil").onClick(() => this.plugin.editReminder(r)));
-      menu.addItem((i) => i.setTitle(t.openLine).setIcon("file-text").onClick(() => void this.plugin.openReminder(r)));
-      menu.addItem((i) => i.setTitle(t.done).setIcon("check").onClick(() => void this.plugin.completeReminder(r)));
-      menu.addSeparator();
-      menu.addItem((i) => i.setTitle(t.delete).setIcon("trash-2").setWarning(true).onClick(() => void this.plugin.deleteReminder(r)));
-      menu.showAtMouseEvent(event);
-    });
-    row.createEl("button", { text: t.done }).addEventListener("click", (event) => {
-      event.stopPropagation();
-      void this.plugin.completeReminder(r);
-    });
-  }
-
   private section(root: HTMLElement, o: SectionOptions): HTMLElement {
     const section = root.createDiv({ cls: "secretary-section" });
     const head = section.createDiv({ cls: "secretary-head" });
@@ -306,4 +253,9 @@ export class SecretaryPanel extends ItemView {
     }
     return section.createDiv({ cls: "secretary-body" });
   }
+}
+
+/** A reminder's time, with its date when it is not today's. */
+function when(r: Reminder, today: string): string {
+  return r.date === today ? r.time : `${shortDate(r.date, today)} ${r.time}`;
 }

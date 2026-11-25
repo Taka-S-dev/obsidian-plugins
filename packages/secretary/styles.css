@@ -302,3 +302,112 @@
   display: block;
   overflow-wrap: anywhere;
 }
+
+/* The agenda: a column in a tab. Each week opens with its name and dates; each day has its date
+   large on the left and its items on the right. Today is in the accent color, Saturday blue and
+   Sunday red; what is overdue comes first, laid out the same way with its dates in the warning color. */
+.secretary-agenda {
+  max-width: 880px;
+  margin: 0 auto;
+  padding: var(--size-4-6) var(--size-4-8);
+}
+
+.secretary-agenda-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--size-4-4);
+}
+
+.secretary-agenda-title {
+  font-size: var(--h2-size, 1.5em);
+  font-weight: var(--font-bold);
+}
+
+.secretary-agenda-week {
+  display: flex;
+  align-items: baseline;
+  gap: var(--size-4-2);
+  margin: var(--size-4-6) 0 var(--size-4-2);
+  padding-bottom: var(--size-2-3);
+  border-bottom: 2px solid var(--background-modifier-border-hover);
+}
+
+.secretary-agenda-week-name {
+  font-size: var(--font-ui-large);
+  font-weight: var(--font-bold);
+}
+
+.secretary-agenda-week-range {
+  color: var(--text-muted);
+  font-size: var(--font-ui-small);
+  font-variant-numeric: tabular-nums;
+}
+
+.secretary-agenda-day {
+  display: grid;
+  grid-template-columns: 72px 1fr;
+  gap: var(--size-4-4);
+  padding: var(--size-4-2) 0;
+  border-bottom: var(--border-width) solid var(--background-modifier-border);
+}
+
+.secretary-agenda-date {
+  text-align: center;
+  line-height: 1.2;
+}
+
+.secretary-agenda-daynum {
+  font-size: 1.75em;
+  font-weight: var(--font-bold);
+  font-variant-numeric: tabular-nums;
+}
+
+.secretary-agenda-weekday {
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+}
+
+.secretary-agenda-day.is-saturday .secretary-agenda-date {
+  color: var(--color-blue);
+}
+
+.secretary-agenda-day.is-sunday .secretary-agenda-date {
+  color: var(--color-red);
+}
+
+.secretary-agenda-day.is-today .secretary-agenda-date {
+  color: var(--text-accent);
+}
+
+/* An overdue date: its month and day (it may be long ago), in the warning color. */
+.secretary-agenda-day.is-overdue .secretary-agenda-date {
+  color: var(--text-warning);
+}
+
+.secretary-agenda-daynum.is-short {
+  font-size: 1.15em;
+  padding-top: var(--size-2-2);
+}
+
+.secretary-agenda-day .secretary-agenda-weekday {
+  color: inherit;
+  opacity: 0.8;
+}
+
+.secretary-agenda-items .secretary-row {
+  font-size: var(--font-ui-medium);
+}
+
+.secretary-agenda-items .secretary-row:last-child {
+  border-bottom: none;
+}
+
+.secretary-agenda-items .secretary-empty {
+  padding: var(--size-4-2) 0;
+}
+
+.secretary-agenda-more {
+  display: block;
+  margin: var(--size-4-4) auto 0;
+}

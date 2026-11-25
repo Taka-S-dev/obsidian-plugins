@@ -30,6 +30,7 @@ import { DEFAULT_SETTINGS, mergeSettings, SecretarySettingTab, type SecretarySet
 import { defaultQueueDir, ensureQueueDir, listMessages, messageKey, readMessage, rejectMessage, removeMessage } from "./spool.ts";
 import { checkTask, parseDueTasks, setDue, type DueTask } from "./tasks.ts";
 import { DateModal } from "./date-modal.ts";
+import { AGENDA_VIEW, AgendaView } from "./agenda-view.ts";
 import { tasksToggle } from "./obsidian-internals.ts";
 import { asNotePath } from "./paths.ts";
 import { hm, ymd } from "./time.ts";
@@ -109,6 +110,7 @@ export default class Secretary extends Plugin {
     this.rejected = loadRejected(saved?.rejected);
     this.addSettingTab(new SecretarySettingTab(this.app, this));
     this.registerView(PANEL_VIEW, (leaf) => new SecretaryPanel(leaf, this));
+    this.registerView(AGENDA_VIEW, (leaf) => new AgendaView(leaf, this));
 
     this.statusEl = this.addStatusBarItem();
     this.statusEl.addClass("mod-clickable");
@@ -120,6 +122,7 @@ export default class Secretary extends Plugin {
     this.addCommand({ id: "capture", name: c.capture, callback: () => this.openCaptureModal() });
     this.addCommand({ id: "add-reminder", name: c.addReminder, callback: () => this.openReminderModal() });
     this.addCommand({ id: "open-panel", name: c.openPanel, callback: () => void this.openPanel() });
+    this.addCommand({ id: "open-agenda", name: c.openAgenda, callback: () => void this.openAgenda() });
     this.addCommand({ id: "open-inbox", name: c.openInbox, callback: () => this.openInbox() });
     this.addCommand({ id: "open-reminders", name: c.openReminders, callback: () => this.openReminders() });
     this.addCommand({ id: "mark-all-read", name: c.markAllRead, callback: () => void this.markRead() });
@@ -833,6 +836,9 @@ export default class Secretary extends Plugin {
     for (const leaf of this.app.workspace.getLeavesOfType(PANEL_VIEW)) {
       if (leaf.view instanceof SecretaryPanel) leaf.view.render();
     }
+    for (const leaf of this.app.workspace.getLeavesOfType(AGENDA_VIEW)) {
+      if (leaf.view instanceof AgendaView) leaf.view.render();
+    }
   }
 
   /** Marks one notice as read, or all of them when id is omitted. */
@@ -861,6 +867,14 @@ export default class Secretary extends Plugin {
     const leaf = existing ?? this.app.workspace.getRightLeaf(false);
     if (!leaf) return;
     if (!existing) await leaf.setViewState({ type: PANEL_VIEW, active: true });
+    await this.app.workspace.revealLeaf(leaf);
+  }
+
+  /** The agenda in a tab of its own, or the one already open. */
+  async openAgenda(): Promise<void> {
+    const existing = this.app.workspace.getLeavesOfType(AGENDA_VIEW)[0];
+    const leaf = existing ?? this.app.workspace.getLeaf("tab");
+    if (!existing) await leaf.setViewState({ type: AGENDA_VIEW, active: true });
     await this.app.workspace.revealLeaf(leaf);
   }
 

@@ -78,11 +78,12 @@ export function splitStamp(item: string, today: string): { stamp: string; text: 
   return { stamp: `${shortDate(m[1], today)} ${m[2]}`, text: item.slice(m[0].length) };
 }
 
-/** A YYYY-MM-DD date as M/D in the current year, and as it is in any other. */
+/** A YYYY-MM-DD date as M/D in the current year, and as YYYY/M/D in any other. */
 export function shortDate(date: string, today: string): string {
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date);
-  if (!m || m[1] !== today.slice(0, 4)) return date;
-  return `${Number(m[2])}/${Number(m[3])}`;
+  if (!m) return date;
+  const md = `${Number(m[2])}/${Number(m[3])}`;
+  return m[1] === today.slice(0, 4) ? md : `${m[1]}/${md}`;
 }
 
 /** One inbox line. Line breaks in the text become spaces so the item stays one line. */

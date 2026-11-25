@@ -57,8 +57,8 @@ test("editing an item changes its text and keeps when it was added", () => {
 
 test("the panel shows when an item was added in short, apart from its text", () => {
   assert.deepEqual(splitStamp("2026-11-09 9:05 図書館の本", "2026-11-25"), { stamp: "11/9 9:05", text: "図書館の本" });
-  assert.deepEqual(splitStamp("2025-12-31 23:59 old", "2026-11-25"), { stamp: "2025-12-31 23:59", text: "old" });
+  assert.deepEqual(splitStamp("2025-12-31 23:59 old", "2026-11-25"), { stamp: "2025/12/31 23:59", text: "old" });
   assert.equal(splitStamp("no stamp here", "2026-11-25"), null);
   assert.equal(shortDate("2026-01-02", "2026-11-25"), "1/2");
-  assert.equal(shortDate("2027-01-02", "2026-11-25"), "2027-01-02");
+  assert.equal(shortDate("2027-01-02", "2026-11-25"), "2027/1/2");
 });
