@@ -119,6 +119,27 @@ Move-Item (Join-Path $dir ".$name.tmp") (Join-Path $dir $name)
 
 Both notes are read again whenever they change, so edits by hand show up right away.
 
+## Links
+
+The text of a reminder, an inbox item or a notice can hold links, written as standard Markdown. The panel and the reminder alert show them by their words and open them on click.
+
+```markdown
+- [ ] 2026-11-25 15:00 Send the quote [Quote](<file://server/share/sales/quote.xlsx>)
+- [ ] 2026-11-25 09:12 Check <https://example.com/status>
+- [ ] 2026-11-25 09:13 Read [[Meeting notes|the notes]]
+```
+
+- Web pages open in the browser, notes in Obsidian.
+- A `file://` link opens a folder in Explorer, brought to the front, and a file with its application. The button after it copies the path; right-click offers **Open** and **Copy path** too.
+- A click outside a link does what it did before (a reminder or an inbox item opens for editing).
+- The status bar and notifications show a link by its words only.
+
+Notices and inbox items can come from other programs, so a click on a link is kept from running a program or reaching an unknown server:
+
+- Only documents that cannot hold macros, pictures and media (PDF, `.docx`, `.xlsx`, `.pptx`, text, photos and the like) and folders open without asking. Anything else (`.exe`, `.bat`, `.lnk`, a `.xlsm` or an older `.xls` or `.doc`, which can hold macros, an `.iso`, an unknown extension) asks first, with Cancel as the default.
+- A `\\server\…` link to a server not opened before shows the server's name and asks before connecting, since opening it signs in to that server with the Windows account. A server once allowed is remembered.
+- Only `https://`, `http://` and `mailto:` addresses open; other schemes (`ms-msdt:`, `search-ms:` and the like, which can run programs) stay text.
+
 ## Not announcing twice
 
 Inbox announcements happen once per reminder time per day. If Obsidian is opened later in the day, only the latest time that has passed is announced (with 09:00 and 16:30, opening at 13:00 announces the 09:00 one). Reminders are checked off, so each is announced once. What has been announced is kept in the plugin's `data.json` with the date and dropped when the day changes.
@@ -142,7 +163,7 @@ Path of the inbox note, path of the reminders note, the queue folder, summary ti
 
 ## What the plugin keeps
 
-Besides the settings, `data.json` holds the notices (the latest 100; beyond that, the oldest read ones go first), recently handled queue files, by name, size and time (the last 200), recently rejected files (the last 20), and what has been announced today.
+Besides the settings, `data.json` holds the notices (the latest 100; beyond that, the oldest read ones go first), recently handled queue files, by name, size and time (the last 200), recently rejected files (the last 20), what has been announced today, and the servers allowed for links (the last 200).
 
 ## Limitations
 
@@ -153,6 +174,6 @@ Besides the settings, `data.json` holds the notices (the latest 100; beyond that
 ## Notes
 
 - The only writes are appending to the inbox and reminders notes, checking off announced reminders, and deleting or moving files in the queue folder. No other note is written.
-- Any program running as the same user can drop files into the queue. Text that arrives is only displayed; nothing in it is ever run.
+- Any program running as the same user can drop files into the queue. Text that arrives is only displayed, and a link in it opens only when clicked; a file that is not a known kind of document, or a server not opened before, asks first (see Links).
 - Windows notifications use `Notification`. If another plugin replaces `Notification`, this plugin's notifications pass through it too.
 - Provided as is, without warranty. Use at your own risk; the author is not liable for any damage arising from its use ([LICENSE](../../LICENSE)).

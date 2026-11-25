@@ -18,6 +18,8 @@ import { checkedLine, DONE_LIMIT, insertLine, lineLabel, loadDone, stillChecked,
 import { stringsFor, type Strings } from "./i18n.ts";
 import { appendEntry, checkItem, editItem, folderOf, formatEntry, inboxItems, openItems, removeItem, withoutStamp, type InboxItem } from "./inbox.ts";
 import { LineModal } from "./line-modal.ts";
+import { plainText } from "./links.ts";
+import { LinkOpener } from "./open-link.ts";
 import { ReminderModal } from "./reminder-modal.ts";
 import { ReminderAlert } from "./reminder-alert.ts";
 import { beep, bringToFront } from "./attention.ts";
@@ -43,18 +45,24 @@ const WATCH_DEBOUNCE_MS = 300;
  * has been left alone this long.
  */
 const EDIT_QUIET_MS = 8_000;
+/** Servers remembered as allowed for share links; the oldest is forgotten past this. */
+const KNOWN_HOSTS_LIMIT = 200;
 /** How long the notice with Undo stays after something is checked off. */
 const UNDO_MS = 10_000;
 
 export default class Secretary extends Plugin {
   settings: SecretarySettings = { ...DEFAULT_SETTINGS };
   s: Strings = stringsFor("en");
+  /** Opens the links in reminders, inbox items and notices; the panel and the alert draw them with it. */
+  links!: LinkOpener;
   /** What the last check read. The panel draws from it. */
   snapshot: Snapshot | null = null;
   private announced: Announced = { date: "", keys: [] };
   /** Reminders and inbox items checked off today from the panel or the alert, for Undo. */
   doneToday: DoneEntry[] = [];
   private bulletins: Bulletin[] = [];
+  /** Servers whose share links have been allowed to open; others are confirmed first. */
+  private knownHosts: string[] = [];
   /**
    * Queue files already handled (name, size and time), so a file that could not be deleted is not
    * handled twice.
@@ -82,11 +90,19 @@ export default class Secretary extends Plugin {
 
   async onload(): Promise<void> {
     this.s = stringsFor(getLanguage());
+    this.links = new LinkOpener(this.app, this.s, {
+      has: (host) => this.knownHosts.includes(host),
+      add: async (host) => {
+        this.knownHosts = [...this.knownHosts.filter((h) => h !== host), host].slice(-KNOWN_HOSTS_LIMIT);
+        await this.persist();
+      },
+    });
     const saved = (await this.loadData()) as Record<string, unknown> | null;
     this.settings = mergeSettings(saved);
     this.announced = loadAnnounced(saved?.announced, ymd(new Date()));
     this.doneToday = loadDone(saved?.doneToday, ymd(new Date()));
     this.bulletins = loadBulletins(saved?.bulletins);
+    this.knownHosts = loadStrings(saved?.knownHosts, KNOWN_HOSTS_LIMIT);
     this.processed = loadStrings(saved?.processed, PROCESSED_LIMIT);
     this.rejected = loadRejected(saved?.rejected);
     this.addSettingTab(new SecretarySettingTab(this.app, this));
@@ -169,6 +185,7 @@ export default class Secretary extends Plugin {
       announced: this.announced,
       doneToday: this.doneToday,
       bulletins: this.bulletins,
+      knownHosts: this.knownHosts,
       processed: this.processed,
       rejected: this.rejected,
     });
@@ -659,6 +676,7 @@ export default class Secretary extends Plugin {
       this.alert.add(pending);
     } else {
       this.alert = new ReminderAlert(this.app, this.s, today, pending, {
+        renderText: (el, text) => this.links.render(el, text),
         done: (r) => this.markReminderDone(r),
         snooze: (r, minutes) => {
           const at = later(new Date(), minutes);
@@ -711,7 +729,9 @@ export default class Secretary extends Plugin {
 
   // ---- showing things ----
 
+  /** A notice and a Windows notification. Links in the body are shown by their words. */
   private announce(title: string, body: string): void {
+    body = plainText(body);
     new Notice(body ? `${title}\n${body}` : title, NOTICE_MS);
     this.notifyWindows(title, body);
   }
@@ -719,7 +739,7 @@ export default class Secretary extends Plugin {
   private notifyWindows(title: string, body: string): void {
     if (!this.settings.desktopNotify || typeof Notification === "undefined") return;
     try {
-      new Notification(title, { body });
+      new Notification(title, { body: plainText(body) });
     } catch (e) {
       console.error("[secretary] Windows notification failed", e);
     }

@@ -73,7 +73,7 @@ export class SecretaryPanel extends ItemView {
         const row = body.createDiv({ cls: ["secretary-row", "secretary-bulletin", ...(b.read ? [] : ["is-unread"])] });
         const text = row.createDiv({ cls: "secretary-bulletin-text" });
         text.createDiv({ cls: "secretary-meta", text: b.source ? `${b.at.slice(11)} ${b.source}` : b.at.slice(11) });
-        text.createDiv({ cls: "secretary-multiline", text: b.text });
+        this.plugin.links.render(text.createDiv({ cls: "secretary-multiline" }), b.text);
         const actions = row.createDiv({ cls: "secretary-row-actions" });
         if (!b.read) actions.createEl("button", { text: t.markRead }).addEventListener("click", () => void this.plugin.markRead(b.id));
         actions.createEl("button", { text: t.done }).addEventListener("click", () => void this.plugin.dismiss(b.id));
@@ -130,7 +130,7 @@ export class SecretaryPanel extends ItemView {
       const text = row.createDiv({ cls: "secretary-reminder-text" });
       if (passed.includes(r)) text.createSpan({ cls: "secretary-time secretary-warning", text: t.overdueTag });
       text.createSpan({ cls: "secretary-time", text: r.date === ymd(now) ? r.time : `${r.date} ${r.time}` });
-      text.createSpan({ text: r.text });
+      this.plugin.links.render(text.createSpan(), r.text);
       row.addEventListener("click", (event) => {
         if (event.ctrlKey || event.metaKey) void this.plugin.openReminder(r);
         else this.plugin.editReminder(r);
@@ -169,7 +169,7 @@ export class SecretaryPanel extends ItemView {
     // Each can also become a reminder (it then leaves the inbox) or be checked off as dealt with.
     for (const item of inbox) {
       const row = iBody.createDiv({ cls: "secretary-row secretary-clickable secretary-reminder" });
-      row.createDiv({ cls: "secretary-reminder-text", text: item });
+      this.plugin.links.render(row.createDiv({ cls: "secretary-reminder-text" }), item);
       row.addEventListener("click", (event) => {
         if (event.ctrlKey || event.metaKey) void this.plugin.openInboxItem(item);
         else this.plugin.editInboxItem(item);

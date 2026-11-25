@@ -3,6 +3,8 @@
 // and the note stays the record. A deleted line can be put back where it was.
 // Pure module (no Obsidian imports).
 
+import { plainText } from "./links.ts";
+
 export type DoneKind = "reminder" | "inbox";
 
 export interface DoneEntry {
@@ -60,7 +62,7 @@ export function stillChecked(entries: DoneEntry[], kind: DoneKind, content: stri
 
 /** A task line as the panel and its notices show it: no checkbox, and no date when it is today's. */
 export function lineLabel(line: string, today: string): string {
-  const text = line.replace(/^\s*[-*+]\s+\[[ xX]\]\s*/, "");
+  const text = plainText(line.replace(/^\s*[-*+]\s+\[[ xX]\]\s*/, ""));
   return text.startsWith(`${today} `) ? text.slice(today.length + 1) : text;
 }
 

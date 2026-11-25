@@ -11,6 +11,8 @@ export const SNOOZE_MINUTES = [10, 60] as const;
 export const ARM_MS = 1_000;
 
 export interface ReminderAlertActions {
+  /** Writes a reminder's text with its links. */
+  renderText(el: HTMLElement, text: string): void;
   /** Checks the reminder off. Resolves to false when its line could not be updated. */
   done(r: Reminder): Promise<boolean>;
   /** Moves the reminder later by that many minutes. Resolves to false when its line could not be updated. */
@@ -79,7 +81,7 @@ export class ReminderAlert extends Modal {
     const a = this.s.alert;
     const row = this.listEl.createDiv({ cls: "secretary-alert-item" });
     row.createDiv({ cls: "secretary-alert-time", text: r.date === this.today ? r.time : a.late(r.date, r.time) });
-    row.createDiv({ cls: "secretary-alert-text", text: r.text });
+    this.actions.renderText(row.createDiv({ cls: "secretary-alert-text" }), r.text);
     const buttons = row.createDiv({ cls: "secretary-alert-buttons" });
     const error = row.createDiv({ cls: "secretary-alert-error" });
     const all: ButtonComponent[] = [];

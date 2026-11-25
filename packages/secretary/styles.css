@@ -253,3 +253,31 @@
 .notice .secretary-undo {
   margin-top: var(--size-4-1);
 }
+
+/* Links in a reminder, an inbox item or a notice: shown by their words, opened on click. */
+.secretary-link {
+  color: var(--link-external-color, var(--text-accent));
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.secretary-link:hover {
+  color: var(--link-external-color-hover, var(--text-accent-hover));
+}
+
+/* The copy button after a file link, as small as the text. */
+.secretary-link-copy {
+  display: inline-flex;
+  padding: 0 var(--size-2-1);
+  vertical-align: middle;
+}
+
+.secretary-link-copy svg {
+  width: var(--icon-xs);
+  height: var(--icon-xs);
+}
+
+.secretary-confirm-path {
+  display: block;
+  overflow-wrap: anywhere;
+}

@@ -5,6 +5,7 @@
 import { unread, type Bulletin, type Rejected } from "./bulletins.ts";
 import type { Strings } from "./i18n.ts";
 import { upcomingToday, type Reminder } from "./reminders.ts";
+import { plainText } from "./links.ts";
 import { classifyDue, type DueTask } from "./tasks.ts";
 
 export interface Snapshot {
@@ -67,15 +68,15 @@ export const reminderCheck: Check = (snap, _slot, s) => {
   const next = upcomingToday(snap.reminders ?? [], snap.now);
   if (next.length === 0) return { details: [], alerts: [] };
   return {
-    status: s.status.next(next[0].time, shorten(next[0].text)),
-    details: listed(s.summary.reminders, next.map((r) => `${r.time} ${r.text}`), s),
+    status: s.status.next(next[0].time, shorten(plainText(next[0].text))),
+    details: listed(s.summary.reminders, next.map((r) => `${r.time} ${plainText(r.text)}`), s),
     alerts: [],
   };
 };
 
 export const bulletinCheck: Check = (snap, _slot, s) => {
   const items = unread(snap.bulletins);
-  const details = listed(s.summary.bulletins, items.map((b) => (b.source ? `${b.text} (${b.source})` : b.text)), s);
+  const details = listed(s.summary.bulletins, items.map((b) => (b.source ? `${plainText(b.text)} (${b.source})` : plainText(b.text))), s);
   if (snap.rejected.length > 0) details.push(s.summary.rejected(snap.rejected.length));
   return { status: items.length ? s.status.bulletins(items.length) : undefined, details, alerts: [] };
 };
