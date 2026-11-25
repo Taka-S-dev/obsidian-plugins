@@ -60,6 +60,8 @@ export default class Secretary extends Plugin {
   links!: LinkOpener;
   /** What the last check read. The panel draws from it. */
   snapshot: Snapshot | null = null;
+  /** What the panels last drew, so an unchanged check does not draw them again. */
+  private shownKey = "";
   private announced: Announced = { date: "", keys: [] };
   /** Reminders and inbox items checked off today from the panel or the alert, for Undo. */
   doneToday: DoneEntry[] = [];
@@ -839,7 +841,21 @@ export default class Secretary extends Plugin {
     new Notice(lines.join("\n"), SUMMARY_MS);
   }
 
+  /**
+   * Draws the panels and the agenda again, but only when what they show has changed: the check runs
+   * every minute, and drawing the same lists again would lose the scroll position and a row under
+   * the mouse. Otherwise only the panel's "as of" time moves on.
+   */
   private renderPanels(): void {
+    const snap = this.snapshot;
+    const key = snap
+      ? JSON.stringify([ymd(snap.now), dueReminders(snap.reminders ?? [], snap.now).map((r) => r.raw), snap.inbox, snap.reminders, snap.dueTasks, snap.bulletins, snap.rejected, this.doneToday])
+      : "";
+    if (key !== "" && key === this.shownKey) {
+      for (const leaf of this.app.workspace.getLeavesOfType(PANEL_VIEW)) if (leaf.view instanceof SecretaryPanel) leaf.view.showTime();
+      return;
+    }
+    this.shownKey = key;
     for (const leaf of this.app.workspace.getLeavesOfType(PANEL_VIEW)) {
       if (leaf.view instanceof SecretaryPanel) leaf.view.render();
     }
@@ -912,13 +928,15 @@ export default class Secretary extends Plugin {
     }).open();
   }
 
-  openReminderModal(): void {
+  /** Adds a reminder; date fills the date field (from a day in the agenda), today otherwise. */
+  openReminderModal(date?: string): void {
     const c = this.s.capture;
+    const start = date ? { title: c.reminderTitle, text: "", date, time: "" } : undefined;
     new ReminderModal(this.app, c, async (date, time, text) => {
       const ok = await this.appendLine(this.remindersPath(), this.s.remindersHeader, formatReminder(date, time, text));
       if (ok) new Notice(c.reminderAdded(date, time, text));
       return ok;
-    }).open();
+    }, start).open();
   }
 }
 

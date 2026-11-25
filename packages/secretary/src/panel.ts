@@ -57,6 +57,12 @@ export class SecretaryPanel extends ItemView {
     this.contentEl.toggleClass("is-wide", this.isWide());
   }
 
+  /** Moves the "as of" time on, for a check that found nothing new to draw. */
+  showTime(): void {
+    const snap = this.plugin.snapshot;
+    if (snap) this.contentEl.querySelector(".secretary-footer")?.setText(this.plugin.s.panel.checkedAt(hm(snap.now)));
+  }
+
   /** Open in the main area rather than a sidebar. */
   isWide(): boolean {
     return this.leaf.getRoot() === this.app.workspace.rootSplit;

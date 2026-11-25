@@ -104,6 +104,16 @@ export class AgendaView extends ItemView {
       date.createDiv({ cls: "secretary-agenda-daynum", text: String(Number(d.date.slice(8))) });
       const near = d.date === today ? t.todayTag : d.date === addDays(today, 1) ? t.tomorrowTag : "";
       date.createDiv({ cls: "secretary-agenda-weekday", text: near ? `${t.weekdays[wd]} · ${near}` : t.weekdays[wd] });
+      // Shown on hover: a reminder on this day, with the date already filled in.
+      const addHere = date.createDiv({ cls: "secretary-agenda-add clickable-icon", attr: { "aria-label": t.addOn(shortDate(d.date, today)), role: "button", tabindex: "0" } });
+      setIcon(addHere, "plus");
+      setTooltip(addHere, t.addOn(shortDate(d.date, today)));
+      addHere.addEventListener("click", () => this.plugin.openReminderModal(d.date));
+      addHere.addEventListener("keydown", (e) => {
+        if (e.key !== "Enter" && e.key !== " ") return;
+        e.preventDefault();
+        this.plugin.openReminderModal(d.date);
+      });
       const items = day.createDiv({ cls: "secretary-agenda-items" });
       if (d.items.length === 0) items.createDiv({ cls: "secretary-empty", text: t.agendaFree });
       for (const item of d.items) this.row(items, item, today, false);

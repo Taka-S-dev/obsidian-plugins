@@ -505,3 +505,15 @@
 .secretary-panel.is-wide .secretary-footer {
   margin-top: var(--size-4-4);
 }
+
+/* Add a reminder on a day: under its date, shown while the day is hovered or the button focused. */
+.secretary-agenda-add {
+  display: inline-flex;
+  margin-top: var(--size-2-2);
+  opacity: 0;
+}
+
+.secretary-agenda-day:hover .secretary-agenda-add,
+.secretary-agenda-add:focus-visible {
+  opacity: 1;
+}
