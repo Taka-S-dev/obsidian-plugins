@@ -164,7 +164,7 @@ Path of the inbox note, path of the reminders note, the queue folder, summary ti
 
 ## What the plugin keeps
 
-Besides the settings, `data.json` holds the notices (the latest 100; beyond that, the oldest read ones go first), recently handled queue files, by name, size and time (the last 200), recently rejected files (the last 20), what has been announced today, and the servers allowed for links (the last 200).
+Besides the settings, `data.json` holds the notices (the latest 100; beyond that, the oldest read ones go first), recently handled queue files, by name, size and time (the last 200), recently rejected files (the last 20), what has been announced today, what was checked off today (for Undo; dropped when the day changes), and the servers allowed for links (the last 200).
 
 ## Limitations
 
@@ -174,7 +174,7 @@ Besides the settings, `data.json` holds the notices (the latest 100; beyond that
 
 ## Notes
 
-- The only writes are appending to the inbox and reminders notes, checking off announced reminders, and deleting or moving files in the queue folder. No other note is written.
+- The only writes are to the inbox and reminders notes (appending lines, and checking off, editing, deleting or undoing from the panel or the reminder alert) and deleting or moving files in the queue folder. No other note is written.
 - Any program running as the same user can drop files into the queue. Text that arrives is only displayed, and a link in it opens only when clicked; a file that is not a known kind of document, or a server not opened before, asks first (see Links).
 - Windows notifications use `Notification`. If another plugin replaces `Notification`, this plugin's notifications pass through it too.
 - Provided as is, without warranty. Use at your own risk; the author is not liable for any damage arising from its use ([LICENSE](../../LICENSE)).
