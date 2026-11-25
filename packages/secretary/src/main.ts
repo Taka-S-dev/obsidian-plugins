@@ -111,6 +111,12 @@ export default class Secretary extends Plugin {
     this.addSettingTab(new SecretarySettingTab(this.app, this));
     this.registerView(PANEL_VIEW, (leaf) => new SecretaryPanel(leaf, this));
     this.registerView(AGENDA_VIEW, (leaf) => new AgendaView(leaf, this));
+    // A panel dragged between a sidebar and the main area takes the width of where it now is.
+    this.registerEvent(
+      this.app.workspace.on("layout-change", () => {
+        for (const leaf of this.app.workspace.getLeavesOfType(PANEL_VIEW)) if (leaf.view instanceof SecretaryPanel) leaf.view.fitWidth();
+      }),
+    );
 
     this.statusEl = this.addStatusBarItem();
     this.statusEl.addClass("mod-clickable");
@@ -123,6 +129,7 @@ export default class Secretary extends Plugin {
     this.addCommand({ id: "add-reminder", name: c.addReminder, callback: () => this.openReminderModal() });
     this.addCommand({ id: "open-panel", name: c.openPanel, callback: () => void this.openPanel() });
     this.addCommand({ id: "open-agenda", name: c.openAgenda, callback: () => void this.openAgenda() });
+    this.addCommand({ id: "open-panel-tab", name: c.openPanelTab, callback: () => void this.openPanelTab() });
     this.addCommand({ id: "open-inbox", name: c.openInbox, callback: () => this.openInbox() });
     this.addCommand({ id: "open-reminders", name: c.openReminders, callback: () => this.openReminders() });
     this.addCommand({ id: "mark-all-read", name: c.markAllRead, callback: () => void this.markRead() });
@@ -862,10 +869,20 @@ export default class Secretary extends Plugin {
     await this.tick();
   }
 
+  /** The panel in the right sidebar; one already open there (or, failing that, anywhere) is shown. */
   async openPanel(): Promise<void> {
-    const existing = this.app.workspace.getLeavesOfType(PANEL_VIEW)[0];
+    const leaves = this.app.workspace.getLeavesOfType(PANEL_VIEW);
+    const existing = leaves.find((l) => l.getRoot() !== this.app.workspace.rootSplit) ?? leaves[0];
     const leaf = existing ?? this.app.workspace.getRightLeaf(false);
     if (!leaf) return;
+    if (!existing) await leaf.setViewState({ type: PANEL_VIEW, active: true });
+    await this.app.workspace.revealLeaf(leaf);
+  }
+
+  /** The panel in a wide tab of the main area, to read everything at once; or the one already open. */
+  async openPanelTab(): Promise<void> {
+    const existing = this.app.workspace.getLeavesOfType(PANEL_VIEW).find((l) => l.getRoot() === this.app.workspace.rootSplit);
+    const leaf = existing ?? this.app.workspace.getLeaf("tab");
     if (!existing) await leaf.setViewState({ type: PANEL_VIEW, active: true });
     await this.app.workspace.revealLeaf(leaf);
   }

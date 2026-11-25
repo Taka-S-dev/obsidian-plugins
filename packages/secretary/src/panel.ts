@@ -6,6 +6,7 @@ import { tabHeaderEl } from "./obsidian-internals.ts";
 import { dueReminders, laterDays, upcomingToday, type Reminder } from "./reminders.ts";
 import { classifyDue, daysBetween, type DueTask } from "./tasks.ts";
 import { dueRow, reminderRow } from "./rows.ts";
+import { weekday } from "./agenda.ts";
 import { hm, ymd } from "./time.ts";
 import type Secretary from "./main";
 
@@ -23,8 +24,8 @@ interface SectionOptions {
 /** The side panel: notices, what is left today, and what waits in the inbox. Redrawn after every check. */
 export class SecretaryPanel extends ItemView {
   /**
-   * Which of the one-line folds are open ("3 after tomorrow", "Done today (2)"); closed again when
-   * the panel is reopened.
+   * The one-line folds ("3 after tomorrow", "Done today (2)") toggled from how they start: closed in
+   * a sidebar, open in a wide tab. Forgotten when the panel is reopened.
    */
   private openFolds = new Set<string>();
 
@@ -40,10 +41,25 @@ export class SecretaryPanel extends ItemView {
     return this.plugin.s.panel.title;
   }
 
-  /** The tab's right-click menu and the "More options" menu also open the agenda. */
+  /**
+   * The tab's right-click menu and the "More options" menu also open the agenda, and, from the
+   * sidebar, the same panel in a wide tab.
+   */
   onPaneMenu(menu: Menu, source: string): void {
-    menu.addItem((i) => i.setTitle(this.plugin.s.commands.openAgenda).setIcon("calendar-days").setSection("open").onClick(() => void this.plugin.openAgenda()));
+    const c = this.plugin.s.commands;
+    if (!this.isWide()) menu.addItem((i) => i.setTitle(c.openPanelTab).setIcon("panel-top").setSection("open").onClick(() => void this.plugin.openPanelTab()));
+    menu.addItem((i) => i.setTitle(c.openAgenda).setIcon("calendar-days").setSection("open").onClick(() => void this.plugin.openAgenda()));
     super.onPaneMenu(menu, source);
+  }
+
+  /** In the main area the rows would stretch across the screen; a column keeps them readable. */
+  fitWidth(): void {
+    this.contentEl.toggleClass("is-wide", this.isWide());
+  }
+
+  /** Open in the main area rather than a sidebar. */
+  isWide(): boolean {
+    return this.leaf.getRoot() === this.app.workspace.rootSplit;
   }
 
   getIcon(): string {
@@ -64,7 +80,10 @@ export class SecretaryPanel extends ItemView {
     const root = this.contentEl;
     root.empty();
     root.addClass("secretary-panel");
+    this.fitWidth();
     const now = snap?.now ?? new Date();
+    const wide = this.isWide();
+    if (wide) this.summary(root, now);
 
     // Notices from other programs. Text is set as text, never parsed as HTML or Markdown.
     // Reading one only clears its mark; it stays listed until it is marked done.
@@ -97,9 +116,12 @@ export class SecretaryPanel extends ItemView {
       }
     }
 
+    // In a wide tab the sections stand side by side as cards; in a sidebar, one under another.
+    const area = wide ? root.createDiv({ cls: "secretary-grid" }) : root;
+
     // Due dates from Tasks plugin lines. Clicking a row opens its note at that line; Done checks it off.
     if (snap?.dueTasks === null) {
-      const dBody = this.section(root, { icon: "calendar-clock", title: t.due, count: 0, buttons: [] });
+      const dBody = this.section(area, { icon: "calendar-clock", title: t.due, count: 0, buttons: [] });
       dBody.createDiv({ cls: "secretary-empty", text: t.dueOff });
     } else {
       const due = classifyDue(snap?.dueTasks ?? [], now);
@@ -110,7 +132,7 @@ export class SecretaryPanel extends ItemView {
         ...due.tomorrow.map((d): [DueTask, string, boolean] => [d, t.tomorrowTag, false]),
       ];
       const agendaButton = { text: this.plugin.s.commands.openAgenda, icon: "calendar-days", onClick: () => void this.plugin.openAgenda() };
-      const dBody = this.section(root, { icon: "calendar-clock", title: t.due, count: due.overdue.length + due.today.length, buttons: [agendaButton] });
+      const dBody = this.section(area, { icon: "calendar-clock", title: t.due, count: due.overdue.length + due.today.length, buttons: [agendaButton] });
       if (rows.length === 0 && due.later.length === 0) dBody.createDiv({ cls: "secretary-empty", text: t.noDue });
       for (const [task, tag, warn] of rows) dueRow(this.plugin, dBody, task, tag, warn, ymd(now));
       // Later due dates are counted on one line, as later reminders are, and listed when it is opened.
@@ -127,7 +149,7 @@ export class SecretaryPanel extends ItemView {
     const passed = dueReminders(reminders, now);
     const upcoming = [...passed, ...upcomingToday(reminders, now)];
     const c = this.plugin.s.commands;
-    const rBody = this.section(root, {
+    const rBody = this.section(area, {
       icon: "alarm-clock",
       title: t.reminders,
       count: upcoming.length,
@@ -150,7 +172,7 @@ export class SecretaryPanel extends ItemView {
     this.doneList(rBody, "reminder", ymd(now));
 
     const inbox = snap?.inbox ?? [];
-    const iBody = this.section(root, {
+    const iBody = this.section(area, {
       icon: "inbox",
       title: t.inbox,
       count: inbox.length,
@@ -220,18 +242,44 @@ export class SecretaryPanel extends ItemView {
    * line until it is wanted.
    */
   private fold(body: HTMLElement, key: string, label: string, fill: (body: HTMLElement) => void): void {
-    const open = this.openFolds.has(key);
+    // A wide tab has the room, so there folds start open and the set holds the ones closed.
+    const open = this.isWide() !== this.openFolds.has(key);
     const toggle = body.createDiv({ cls: "secretary-note secretary-clickable secretary-fold" });
     setIcon(toggle.createSpan({ cls: "secretary-fold-icon" }), open ? "chevron-down" : "chevron-right");
     toggle.createSpan({ text: label });
     toggle.setAttr("aria-expanded", String(open));
     toggle.addEventListener("click", () => {
-      if (open) this.openFolds.delete(key);
+      if (this.openFolds.has(key)) this.openFolds.delete(key);
       else this.openFolds.add(key);
       this.render();
     });
     // Indented under a guide line, so what belongs to the fold reads apart from the rows around it.
     if (open) fill(body.createDiv({ cls: "secretary-fold-body" }));
+  }
+
+  /**
+   * The top of a wide tab: today's date and how many things are overdue, due today and in the
+   * inbox, so the state of things shows before any list is read.
+   */
+  private summary(root: HTMLElement, now: Date): void {
+    const t = this.plugin.s.panel;
+    const snap = this.plugin.snapshot;
+    const today = ymd(now);
+    const reminders = snap?.reminders ?? [];
+    const due = classifyDue(snap?.dueTasks ?? [], now);
+    const counts: [string, number, string][] = [
+      [t.agendaOverdue, due.overdue.length + dueReminders(reminders, now).length, "is-warning"],
+      [t.todayTag, due.today.length + upcomingToday(reminders, now).length, "is-accent"],
+      [t.inbox, snap?.inbox?.length ?? 0, ""],
+    ];
+    const head = root.createDiv({ cls: "secretary-summary" });
+    head.createDiv({ cls: "secretary-summary-date", text: t.dayHeading(shortDate(today, today), t.weekdays[weekday(today)]) });
+    const chips = head.createDiv({ cls: "secretary-summary-counts" });
+    for (const [label, n, cls] of counts) {
+      const chip = chips.createDiv({ cls: ["secretary-chip", ...(n > 0 && cls ? [cls] : [])] });
+      chip.createSpan({ cls: "secretary-chip-count", text: String(n) });
+      chip.createSpan({ text: label });
+    }
   }
 
   private section(root: HTMLElement, o: SectionOptions): HTMLElement {

@@ -182,6 +182,7 @@ const en = {
     // The command palette puts "Secretary:" in front; the ribbon icon's tooltip stands alone.
     openPanel: "Open panel",
     openAgenda: "Open agenda",
+    openPanelTab: "Open panel in a tab",
     ribbon: "Open Secretary",
     markAllRead: "Mark all notices as read",
   },
@@ -391,6 +392,7 @@ const ja: Strings = {
     openReminders: "リマインダーを開く",
     openPanel: "パネルを開く",
     openAgenda: "予定を開く",
+    openPanelTab: "パネルをタブで開く",
     ribbon: "Secretary を開く",
     markAllRead: "お知らせをすべて既読にする",
   },
