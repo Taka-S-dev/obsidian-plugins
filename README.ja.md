@@ -10,6 +10,7 @@ Obsidian プラグインをまとめたリポジトリ。1 プラグイン = `pa
 | [dayplanner-notify](packages/dayplanner-notify/README.ja.md) | Day Planner のタスク開始を前面化・音で知らせ、その場で延期できるアラートを追加する |
 | [terminal-pane](packages/terminal-pane/README.ja.md) | シェル、GitHub Copilot CLI、自作のターミナルプログラムを、タブ付きのペインで Vault のフォルダから動かす |
 | [secretary](packages/secretary/README.ja.md) | Obsidian の中の秘書。受信箱、リマインダー、ほかのプログラムから受け口のフォルダで届くお知らせ、パネル、それらを知らせるハートビート |
+| [loose-ends](packages/loose-ends/README.ja.md) | Vault の後始末の漏れを一覧にする。切れた画像・ファイルへのリンク、なくなった Vault の外のファイルへのリンク、使われていない添付ファイル、空のフォルダ |
 
 ## セットアップ
 
