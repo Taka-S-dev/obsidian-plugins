@@ -1,0 +1,337 @@
+.loose-ends {
+  padding: var(--size-4-4) var(--size-4-6);
+}
+
+/* In a wide tab the names and their buttons stay within reach of each other. */
+.loose-ends > * {
+  max-width: 960px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.loose-ends-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--size-4-2);
+  margin-bottom: var(--size-4-3);
+}
+
+.loose-ends-scanned {
+  color: var(--text-muted);
+  font-size: var(--font-ui-small);
+}
+
+.loose-ends-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--size-4-1);
+  border-bottom: 1px solid var(--background-modifier-border);
+  margin-bottom: var(--size-4-3);
+}
+
+.loose-ends .loose-ends-tab {
+  display: flex;
+  align-items: center;
+  gap: var(--size-4-2);
+  padding: var(--size-4-2) var(--size-4-3);
+  background: transparent;
+  box-shadow: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  border-radius: var(--radius-s) var(--radius-s) 0 0;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.loose-ends .loose-ends-tab:hover {
+  background: var(--background-modifier-hover);
+  color: var(--text-normal);
+}
+
+.loose-ends .loose-ends-tab.is-active {
+  border-bottom-color: var(--interactive-accent);
+  color: var(--text-normal);
+  font-weight: var(--font-semibold);
+}
+
+/* Nothing left in it: faint, so what still needs doing stands out. */
+.loose-ends-tab.is-done:not(.is-active) {
+  opacity: 0.55;
+}
+
+.loose-ends-panel-title {
+  font-weight: var(--font-semibold);
+  margin-bottom: var(--size-4-1);
+}
+
+.loose-ends-count {
+  margin-left: auto;
+  min-width: 1.8em;
+  padding: 0 var(--size-4-2);
+  border-radius: var(--radius-l);
+  background: var(--background-modifier-hover);
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+  text-align: center;
+}
+
+.loose-ends-count.is-some {
+  background: var(--color-orange);
+  color: var(--text-on-accent);
+}
+
+
+.loose-ends-hint,
+.loose-ends-empty {
+  color: var(--text-muted);
+  font-size: var(--font-ui-small);
+  margin: var(--size-4-1) 0 var(--size-4-2);
+}
+
+.loose-ends-warning {
+  color: var(--text-warning);
+  font-size: var(--font-ui-small);
+  margin-top: var(--size-4-2);
+}
+
+.loose-ends-check {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--size-4-3);
+}
+
+.loose-ends-row {
+  display: flex;
+  align-items: center;
+  gap: var(--size-4-2);
+  padding: var(--size-4-1) var(--size-4-2);
+  border-radius: var(--radius-s);
+}
+
+.loose-ends-row:hover {
+  background: var(--background-modifier-hover);
+}
+
+.loose-ends-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.loose-ends-row.is-clickable .loose-ends-main {
+  cursor: pointer;
+}
+
+.loose-ends-target {
+  overflow-wrap: anywhere;
+}
+
+.loose-ends-note {
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+  overflow-wrap: anywhere;
+}
+
+.loose-ends-count.is-unknown {
+  background: transparent;
+  border: 1px dashed var(--background-modifier-border-hover);
+}
+
+.loose-ends-select {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--size-4-3);
+  padding: var(--size-4-1) var(--size-4-2) var(--size-4-2);
+  border-bottom: 1px solid var(--background-modifier-border);
+  margin-bottom: var(--size-4-1);
+}
+
+.loose-ends-select-all {
+  display: flex;
+  align-items: center;
+  gap: var(--size-4-2);
+  color: var(--text-muted);
+  font-size: var(--font-ui-small);
+  cursor: pointer;
+}
+
+.loose-ends-box {
+  flex: none;
+}
+
+.loose-ends-thumb {
+  flex: none;
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-s);
+  background: var(--background-primary);
+  color: var(--text-faint);
+  overflow: hidden;
+}
+
+.loose-ends-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.loose-ends-main:focus-visible {
+  outline: 2px solid var(--interactive-accent);
+  outline-offset: 2px;
+  border-radius: var(--radius-s);
+}
+
+.loose-ends-confirm-list {
+  max-height: 40vh;
+  overflow-y: auto;
+  font-size: var(--font-ui-small);
+  overflow-wrap: anywhere;
+}
+
+.loose-ends-select-extra {
+  margin-left: auto;
+}
+
+.loose-ends-group > summary {
+  cursor: pointer;
+  list-style: none;
+}
+
+.loose-ends-group > summary::-webkit-details-marker {
+  display: none;
+}
+
+/* A fold of places shows that it opens. */
+.loose-ends-group > summary::before {
+  content: "▸";
+  color: var(--text-faint);
+  width: 1em;
+  flex: none;
+}
+
+.loose-ends-group[open] > summary::before {
+  content: "▾";
+}
+
+.loose-ends-group > summary .loose-ends-main {
+  display: inline-block;
+  vertical-align: top;
+}
+
+.loose-ends-place {
+  padding-left: var(--size-4-8);
+}
+
+.loose-ends-main .loose-ends-warning {
+  margin-top: 2px;
+  font-size: var(--font-ui-smaller);
+}
+
+/* The tab of things taken off the lists: set apart from the lists themselves. */
+.loose-ends .loose-ends-tab.is-hidden {
+  margin-left: auto;
+}
+
+.loose-ends-kind {
+  margin: var(--size-4-3) 0 var(--size-4-1);
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+  font-weight: var(--font-semibold);
+}
+
+/* Lists of links: one line per row, the note after the name. */
+.loose-ends-row.is-line {
+  padding-top: 2px;
+  padding-bottom: 2px;
+}
+
+.loose-ends-main.is-inline {
+  display: flex;
+  align-items: baseline;
+  gap: var(--size-4-3);
+  min-width: 0;
+}
+
+.loose-ends-main.is-inline .loose-ends-target {
+  flex: none;
+  max-width: 60%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.loose-ends-main.is-inline .loose-ends-note {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.loose-ends-group > summary.is-line {
+  display: flex;
+  align-items: center;
+}
+
+.loose-ends-group > summary .loose-ends-main.is-inline {
+  display: flex;
+  flex: 1;
+}
+
+.loose-ends-select .search-input-container {
+  flex: 1;
+  max-width: 360px;
+}
+
+.loose-ends-more {
+  display: flex;
+  justify-content: center;
+  margin-top: var(--size-4-2);
+}
+
+/* Scan again: the icon turns while the vault is read, and what changed flashes once after. */
+.loose-ends-head button.loose-ends-spinning svg {
+  animation: loose-ends-spin 0.8s linear infinite;
+}
+
+@keyframes loose-ends-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.loose-ends-change {
+  margin-left: var(--size-4-2);
+  padding: 0 var(--size-4-2);
+  border-radius: var(--radius-s);
+  animation: loose-ends-flash 1.2s ease-out;
+}
+
+.loose-ends-change::before {
+  content: "· ";
+}
+
+@keyframes loose-ends-flash {
+  from {
+    background: var(--text-highlight-bg);
+    color: var(--text-normal);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .loose-ends-head button.loose-ends-spinning svg,
+  .loose-ends-change {
+    animation: none;
+  }
+}
+
+.loose-ends-confirm-folders {
+  display: flex;
+  align-items: center;
+  gap: var(--size-4-2);
+  margin-top: var(--size-4-2);
+  cursor: pointer;
+}
