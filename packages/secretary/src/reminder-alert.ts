@@ -32,6 +32,8 @@ export interface ReminderAlertActions {
  */
 export class ReminderAlert extends Modal {
   private readonly left = new Map<Reminder, HTMLElement>();
+  /** Each row's time, relabelled when the day changes while the alert is open. */
+  private readonly times = new Map<Reminder, HTMLElement>();
   private listEl!: HTMLElement;
   /** Reminders handed in before the alert was drawn. */
   private pending: Reminder[];
@@ -63,13 +65,22 @@ export class ReminderAlert extends Modal {
     window.setTimeout(() => this.modalEl.focus(), 0);
   }
 
-  /** Adds reminders that came due while the alert is open. */
-  add(reminders: Reminder[]): void {
+  /**
+   * Adds reminders that came due while the alert is open. One already in it is left as it is: past
+   * midnight the reminders still unchecked come due again, and the alert may have been open since.
+   */
+  add(reminders: Reminder[], today: string): void {
+    const shown = [...this.pending, ...this.left.keys()];
+    const fresh = reminders.filter((r) => !shown.some((s) => s.date === r.date && s.time === r.time && s.text === r.text));
+    if (today !== this.today) {
+      this.today = today;
+      for (const [r, el] of this.times) el.setText(this.timeLabel(r));
+    }
     if (!this.listEl) {
-      this.pending.push(...reminders);
+      this.pending.push(...fresh);
       return;
     }
-    for (const r of reminders) this.addRow(r);
+    for (const r of fresh) this.addRow(r);
   }
 
   onClose(): void {
@@ -80,7 +91,7 @@ export class ReminderAlert extends Modal {
   private addRow(r: Reminder): void {
     const a = this.s.alert;
     const row = this.listEl.createDiv({ cls: "secretary-alert-item" });
-    row.createDiv({ cls: "secretary-alert-time", text: r.date === this.today ? r.time : a.late(r.date, r.time) });
+    this.times.set(r, row.createDiv({ cls: "secretary-alert-time", text: this.timeLabel(r) }));
     this.actions.renderText(row.createDiv({ cls: "secretary-alert-text" }), r.text);
     const buttons = row.createDiv({ cls: "secretary-alert-buttons" });
     const error = row.createDiv({ cls: "secretary-alert-error" });
@@ -112,6 +123,7 @@ export class ReminderAlert extends Modal {
       }
       row.remove();
       this.left.delete(r);
+      this.times.delete(r);
       if (this.left.size === 0) this.close();
     };
     all.push(new ButtonComponent(buttons).setButtonText(a.done).setCta().onClick((e) => void act(e, () => this.actions.done(r))));
@@ -126,6 +138,11 @@ export class ReminderAlert extends Modal {
       if (row.isConnected) all.forEach((b) => b.setDisabled(false));
     }, ARM_MS);
     this.left.set(r, row);
+  }
+
+  /** The time alone for today's reminders; the date too, marked as passed, for earlier ones. */
+  private timeLabel(r: Reminder): string {
+    return r.date === this.today ? r.time : this.s.alert.late(r.date, r.time);
   }
 
   /**

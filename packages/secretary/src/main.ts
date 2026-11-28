@@ -764,7 +764,7 @@ export default class Secretary extends Plugin {
     if (this.settings.reminderFront) bringToFront();
     if (this.settings.reminderSound) beep();
     if (this.alert) {
-      this.alert.add(pending);
+      this.alert.add(pending, today);
     } else {
       this.alert = new ReminderAlert(this.app, this.s, today, pending, {
         renderText: (el, text) => this.links.render(el, text),
